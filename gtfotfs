@@ -1,354 +1,792 @@
 #!/usr/bin/env bash
 
-# Editors beware: 
+# TODO:
+# Refactor update_existing_target_repo
+    # Fix jq query to accommodate the scenario where the XML to JSON conversion results in a single JSON object instead of an array, because there's only one last changelist to sync
+# If Git remote is provided, test its connection during input validation (ie. git can access credentials, start a session, network connectivity, etc.)
+# Sort out credential storage
 
-declare -r CLEAR='\033[0m'
-declare -r RED='\033[0;31m'
-declare -r YELLOW='\033[0;33m'
-declare -r GT_WORKSPACE="tmigrate"
-declare -r GT_HISTORY="/tmp/$GT_WORKSPACE-history.xml"
-declare -r GT_JQHISTORY="$GT_HISTORY.json"
-declare -r GT_VERSION="v1.0.4"
 
-declare -i GT_KEEPDIR=0
+# Declare global variables
+# declare -r is a read-only variable
+# declare -A is an associative array
+# declare -i is an integer variable
+declare -A  author_mapping_array
+declare     author_name_mapping_file
+declare -i  changelist_batch_size=2
+declare -i  continue_from_changeset
+declare     external_dependencies="git java jq tf xml2json"
+declare     git_ignore_file
+# declare     git_personal_access_token
+declare     git_remote
+declare     git_target_directory
+declare -i  last_commit_changeset
+declare -r  script_name="${0}"
+declare -r  script_version="v1.0.4.1-dev"
+declare     tfs_collection
+declare -i  tfs_history_start_changeset
+declare -r  tfs_workspace="gtfotfs-migration-workspace"
+declare -r  tfs_repo_history_file_json="$tfs_workspace-history.json"
+declare -r  tfs_repo_history_file_xml="$tfs_workspace-history.xml"
+declare -r  tfs_latest_changeset_json="$tfs_workspace-latest-changeset.json"
+declare -r  tfs_latest_changeset_xml="$tfs_workspace-latest-changeset.xml"
+declare     tfs_source_repo_path
+declare     update_existing_target_repo=false # Keep the existing target directory, in case of using this script to update an existing repo, instead of delete and create new
 
-declare -A GT_OWNERMAP
+# Colours for formatting stdout
+declare -r  error_red_colour='\033[0;31m'
+declare -r  info_yellow_colour='\033[0;33m'
+declare -r  reset_colour='\033[0m'
 
-declare GT_IGNOREFILE
-declare GT_COLLECTION
-declare GT_REPO     
-declare GT_FIRSTCS="T"
-declare GT_TARGETDIR 
-declare GT_NAMEFILE
-declare GT_GITREMOTE
-declare GT_IGNOREFILE
+# Environment variables used because Git doesn't allow setting committer date by command line args
+# export GIT_AUTHOR_DATE="${current_changeset_date}"
+# export GIT_COMMITTER_DATE=$GIT_AUTHOR_DATE
 
-function gtfotfs::check_dependencies() {
-  for p in "${@}"; do
-    hash "${p}" 2>&- || \
-      gtfotfs::error "Required program \"${p}\" not installed or in search PATH."
-  done
+# External binaries used
+# git
+# java
+# jq
+# tf # Microsoft's Teams Explorer Everywhere Command Line Client (TEE-CLC): https://github.com/microsoft/team-explorer-everywhere
+# xml2json
+
+# Bash built-ins used
+# hash
+    # Determine and remember the full pathname of each command name
+    # Used to test if dependencies are installed
+# pushd DIR
+    # Adds DIR to the directory stack at the top, making it the new current working directory.
+    # With no arguments, exchanges the top two directories
+    # The `dirs' builtin displays the directory stack.
+    # Exit Status: Returns success unless an invalid argument is supplied, or the directory change fails.
+# popd
+    # With no arguments, removes the top directory from the stack, and changes to the new top directory.
+    # Exit Status: Returns success unless an invalid argument is supplied or the directory change fails.
+
+
+function cleanup() {
+
+    # Clear the pushd / popd directory stack
+    dirs -c
+
+    # Unset environment variables
+    unset GIT_COMMITTER_DATE
+    unset GIT_AUTHOR_DATE
+
 }
 
-function gtfotfs::cstatus() {
-  echo -e "${YELLOW}[${0} - $(date +%R)]${CLEAR} $1\n";
+
+function print_status_update() {
+
+    # TODO: Add logging to a file
+
+    echo -e "${info_yellow_colour}$(date +'%F %T'); $script_name $script_version; INFO;${reset_colour} $1"
+
 }
 
-function gtfotfs::error() {
-  if [ -n "$1" ]; then
-    echo -e "${RED}ERROR: ${1}${CLEAR}\n";
-  fi
-  exit 1
+
+function print_error_and_exit() {
+
+    # TODO: Add logging to a file
+
+    # If a message was passed to this function call
+    if [ -n "$1" ]
+    then
+
+        # Then print the message
+        echo -e "${error_red_colour}$(date +'%F %T'); $script_name $script_version; ERROR;${reset_colour} $1"
+
+    fi
+
+    # Exit the script, all errors are fatal
+    cleanup
+    exit 1
 }
 
-function gtfotfs::usage() {
-  cat <<EOF
 
-TFVC to Git Migration Tool (${0}) ${GT_VERSION}
-by turbo (minxomat@gmail.com | github.com/turbo)
+function pushd_popd_cd_error() {
 
-Usage: ${0} <args>
+    print_error_and_exit "pushd, popd, or cd failed; something's very wrong"
 
-Arguments:
+}
 
-  -c, --collection     Collection which contains target repo, e.g.:
-                       https://tfs.example.com/tfs/ProjectCollection
 
-  -s, --source         Source location within TFS, e.g.
-                       $/contoso/sources/productive
+function print_usage_instructions() {
 
-  -h, --history        The numerical value of the change-set where
-                       migration should begin. Prior history will be
-                       dropped. E.g.: 1337. Default is first ever.
+    cat <<EOF
+    TFVC to Git Migration Tool $script_name $script_version
+    by turbo (minxomat@gmail.com | github.com/turbo)
+    forked by Sourcegraph (github.com/sourcegraph/gtfotfs)
 
-  -t, --target         Directory (will be created) where the new git
-                       repository will live.
+    Usage: $script_name -a AUTHORS.json -c COLLECTION -s SOURCE_PATH -t TARGET_PATH
 
-  -k, --keep           Do not delete and re-init target, instead over-
-                       write prior contents. Default is false.
+    Arguments:
 
-  -n, --names          JSON file which maps between old TFS account names
-                       to proper git author strings. E.g.:
-                       {
-                         "CONTOSO\\\\j.doe": "John Doe <john.doe@contoso.com>",
-                         ...
-                       }
+    -a, --authors
+        [Required]
+        JSON file which maps old TFS account names
+        to proper git author strings. E.g.:
+        {
+            "Your Azure DevOps Changeset Owner Identifier": "Your GitHub Author Identifier",
+            "john.doe@contoso.com": "John Doe <john.doe@contoso.com>",
+            ...
+        }
 
-  -r, --remote         Path to new remote origin. Will be set up and pushed
-                       to during the migration.
+    -c, --tfs-collection
+        [Required]
+        Collection which contains target repo, e.g.:
+        https://tfs.example.com/tfs/ProjectCollection
 
-  -i, --ignore         Full path to a gitignore file, which will be applied during
-                       the migration.
+    -h, --history-start-changeset
+        [Optional for new repos, ignored for updating existing repos]
+        The numerical value of the change-set where
+        migration should begin. Prior history will be
+        dropped. E.g.: 1337. Default is 1 (all commits)
+
+    -i, --git-ignore-file
+        Full path to a gitignore file, which will be applied during
+        the migration
+
+    -r, --remote, --git-remote
+        [Required for new clones]
+        Path to new remote origin. Will be set up and force pushed
+        to during the migration
+
+    -s, --tfs-source-path
+        [Required]
+        Source location within TFS, e.g.
+        $/contoso/sources/productive
+
+    -t, --git-target-directory
+        [Required]
+        Directory where the new git repository will live.
+        If this directory exists, and -u is not used, the directory
+        will be deleted and re-created
+
+    -u, --update-existing-repo
+        Do not delete and re-init target, instead over-
+        write prior contents
+        Default is false
 
 EOF
 }
 
-function gtfotfs::cleanup() {
-  unset GIT_COMMITTER_DATE
-  unset GIT_AUTHOR_DATE
-  gtfotfs::cstatus "Done."
-}
 
-function gtfotfs::cd_error() {
-  gtfotfs::error "FATAL: cd failed. Something's very wrong."
-}
+function parse_and_validate_user_args() {
 
-function gtfotfs::prepare_target_exisiting() {
-  if [ ! -d "${GT_TARGETDIR}" ]; then 
-    gtfotfs::error "Directory $GT_TARGETDIR does not exist."
-  fi
-
-  if [ ! -d "${GT_TARGETDIR}/.git" ]; then 
-    gtfotfs::error "Directory $GT_TARGETDIR is not a git repository."
-  fi
-
-  if [ -n "${GT_GITREMOTE}" ]; then 
-    gtfotfs::cstatus "Overwriting git remote origin."
-
-    pushd "${GT_TARGETDIR}" || gtfotfs::cd_error
-    
-    git remote rm origin
-
-    if ! git remote add origin "${GT_GITREMOTE}" ; then
-      popd || gtfotfs::cd_error
-      gtfotfs::error "Could not add origin ${GT_GITREMOTE}. Check git output."
+    # If the user didn't provide any args, print usage instructions then exit
+    if [[ $# -eq 0 ]]
+    then
+        print_usage_instructions
+        exit 0
     fi
 
-    popd || gtfotfs::cd_error
-  fi
+    # Parse user arguments
+    while [[ "$#" -gt 0 ]]
+    do
+        case $1 in
+        -a | --authors)
+            author_name_mapping_file="$2"
+            shift
+            shift
+            ;;
+        -b | --changelist-batch-size)
+            changelist_batch_size="$2"
+            shift
+            shift
+            ;;
+        -c | --tfs-collection)
+            tfs_collection="$2"
+            shift
+            shift
+            ;;
+        -h | --history-start-changeset)
+            tfs_history_start_changeset="$2"
+            shift
+            shift
+            ;;
+        -i | --git-ignore-file)
+            git_ignore_file="$2"
+            shift
+            shift
+            ;;
+        # -p | --git-pat | --git-personal-access-token)
+        #     git_personal_access_token="$2"
+        #     shift
+        #     shift
+        #     ;;
+        -r | --remote | --git-remote)
+            git_remote="$2"
+            shift
+            shift
+            ;;
+        -s | --tfs-source-path)
+            tfs_source_repo_path="$2"
+            shift
+            shift
+            ;;
+        -t | --git-target-directory)
+            git_target_directory="$2"
+            shift
+            shift
+            ;;
+        -u | --update-existing-repo)
+            update_existing_target_repo=true
+            shift
+            shift
+            ;;
+        *)
+            print_error_and_exit "Unknown parameter: $1"
+            ;;
+        esac done
+
+    # Validate required arguments
+    if [ -z "$author_name_mapping_file" ];  then print_error_and_exit "Author name mapping file (-a) is required"   ; fi
+    if [ -z "$git_target_directory" ];      then print_error_and_exit "Git target directory (-t) is required"       ; fi
+    if [ -z "$tfs_collection" ];            then print_error_and_exit "Collection (-c) is required"                 ; fi
+    if [ -z "$tfs_source_repo_path" ];      then print_error_and_exit "TFS source repository path (-s) is required" ; fi
+
 }
 
-function gtfotfs::prepare_target_new() {
-  if [ -z "${GT_GITREMOTE}" ]; then 
-    gtfotfs::error "Git remote (-r) is required for a new repository."
-  fi
 
-  gtfotfs::cstatus "Cleaning directory ${GT_TARGETDIR}"
-  rm -rf "$GT_TARGETDIR"
+function check_dependencies() {
 
-  if ! mkdir -p "${GT_TARGETDIR}" ; then
-    gtfotfs::error "Could not create directory ${GT_TARGETDIR}."
-  fi
+    # TODO: Refactor to test all dependencies, add the missing dependencies to an array, and if the array is not empty, then print the error including all missing dependencies, and exit
+    # TODO: Print the $PATH env to help visually check that the right paths are in PATH, especially for tf
 
-  pushd "${GT_TARGETDIR}" || gtfotfs::cd_error
-  
-  if ! git init ; then
-    popd || gtfotfs::cd_error
-    gtfotfs::error "Could not initialize git repository in ${GT_TARGETDIR}."
-  fi
+    # For each dependecy in the function args
+    for dependency in $external_dependencies
+    do
 
-  gtfotfs::cstatus "Adding origin ${GT_GITREMOTE}."
+        # Use the Bash built-in hash command to test if the dependency exists, and store its location in hash's storage
+        # Close the stderr file descriptor, to not get any error output from the hash command, only get an output if it exists
+        # If no output (error), then print an error message that the required dependency is not installed or in $PATH
+        hash "${dependency}" 2>&- || print_error_and_exit "Required program \"${dependency}\" not installed or in PATH"
 
-  if ! git remote add origin "${GT_GITREMOTE}" ; then
-    popd || gtfotfs::cd_error
-    gtfotfs::error "Could not add origin ${GT_GITREMOTE}. Check git output."
-  fi
+    done
 
-  popd || gtfotfs::cd_error
 }
 
-function gtfotfs::stage_ignore_file() {
-  gtfotfs::cstatus "Adding initial .gitignore file to exclude .tf directory."
-  
-  pushd "${GT_TARGETDIR}" || gtfotfs::cd_error
 
-  echo '.tf' >> ".gitignore"
+function prepare_keeping_existing_target() {
 
-  if [ -n "${GT_IGNOREFILE}" ]; then 
-    cat "${GT_IGNOREFILE}" >> ".gitignore"
-  fi
-
-  if ! git add .gitignore ; then
-    popd || gtfotfs::cd_error
-    gtfotfs::error "Could not stage .gitignore file. Check git output."
-  fi
-
-  popd || gtfotfs::cd_error
-}
-
-function gtfotfs::create_temp_workspace() {
-  gtfotfs::cstatus "Deleting workspace (allowed to fail)."
-  tf workspace -delete -noprompt "${GT_WORKSPACE}" -collection:"${GT_COLLECTION}" > /dev/null
-
-  gtfotfs::cstatus "Creating workspace for collection ${GT_COLLECTION}."
-  if ! tf workspace -new -noprompt "${GT_WORKSPACE}" -collection:"${GT_COLLECTION}" ; then
-    gtfotfs::error "Failed to create new workspace ${GT_COLLECTION}."
-  fi
-
-  gtfotfs::cstatus "Unmapping source (allowed to fail)"
-  tf workfold -unmap -workspace:"${GT_WORKSPACE}" "${GT_REPO}"
-
-  gtfotfs::cstatus "Mapping source ${GT_REPO} to ${GT_TARGETDIR}."
-  if ! tf workfold -map "${GT_REPO}" -workspace:"${GT_WORKSPACE}" "${GT_TARGETDIR}" ; then
-    gtfotfs::error "Failed to map repo to workspace. Check tf output."
-  fi
-}
-
-function gtfotfs::get_tfs_history() {
-  gtfotfs::cstatus "Getting history of ${GT_REPO} in range ${GT_FIRSTCS}. This will take *A WHILE*."
-  
-  rm -f "$GT_HISTORY"
-  
-  if ! tf history -workspace:"${GT_WORKSPACE}" "${GT_REPO}" -recursive -format:xml -version:"${GT_FIRSTCS}" -noprompt > "${GT_HISTORY}" ; then
-    gtfotfs::error "Unable to get TFVC history. See tf output."
-  fi
-}
-
-function gtfotfs::convert_history() {
-  if ! xml2json -t xml2json -o "${GT_HISTORY}.json" "${GT_HISTORY}" ; then
-    gtfotfs::error "Unable to convert history to json. See file ${GT_HISTORY}."
-  fi
-
-  GT_NCS=$(jq '.history.changeset | length' "${GT_JQHISTORY}")
-  gtfotfs::cstatus "$GT_NCS changesets in history."
-}
-
-function gtfotfs::cs_sequence_old_to_new() {
-  GT_CSSEQ=$(jq -r '[.history.changeset[]["@id"]] | reverse[]' "${GT_JQHISTORY}")
-}
-
-function gtfotfs::lick_authors_into_shape() {
-  GT_OAUTHORS=$(jq -r '[.history.changeset[]["@owner"]] | unique[]' "${GT_JQHISTORY}")
-
-  if [ ! -f "$GT_NAMEFILE" ]; then 
-    gtfotfs::error "Owner mapping file ${GT_NAMEFILE} does not exist."
-  fi
-
-  while IFS="" read -r GT_OTOMAP; do
-    GT_TMPMAP=$(jq -r '.["'"${GT_OTOMAP//\\/\\\\}"'"]' "$GT_NAMEFILE")
-
-    if [ -z "${GT_TMPMAP}" ]; then 
-      gtfotfs::error "No mapping found for author ${GT_OTOMAP}."
+    # Validate the target directory exists
+    if [ ! -d "${git_target_directory}" ]
+    then
+        print_error_and_exit "Provided target directory $git_target_directory does not exist"
     fi
 
-    GT_OWNERMAP["${GT_OTOMAP}"]="${GT_TMPMAP}"
-  done < <(tr ' ' '\n' <<< "${GT_OAUTHORS}")
-
-  gtfotfs::cstatus "Owner mapping as configured by $GT_NAMEFILE:"
-  
-  for i in "${!GT_OWNERMAP[@]}"; do
-    echo "$i -> ${GT_OWNERMAP[$i]}"
-  done
-  echo ""
-}
-
-function gtfotfs::migrate() {
-  GT_FIRSTCOMMIT=1
-
-  while read -r GT_CURCSID; do
-    GT_CURCSINFO=$(jq -c '.history.changeset[] | select (.["@id"] == "'"${GT_CURCSID}"'") | [.comment["#text"], .["@owner"], .["@date"]]' "${GT_JQHISTORY}")
-    GT_CURCSDATE=$(echo "${GT_CURCSINFO}" | jq -r '.[2]')
-    GT_CURCSAUTHOR=$(echo "${GT_CURCSINFO}" | jq -r '.[1]')
-    GT_CURCSMESSAGE=$(echo "${GT_CURCSINFO}" | jq -r '.[0]')
-
-    if [ -z "${GT_OWNERMAP["${GT_CURCSAUTHOR}"]}" ]; then
-      gtfotfs::error "Source author ${GT_CURCSAUTHOR} is not mapped."
+    # Validate the target directory is a git repo
+    if [ ! -d "${git_target_directory}/.git" ]
+    then
+        print_error_and_exit "Provided target directory $git_target_directory is not a git repository"
     fi
 
-    gtfotfs::cstatus "Getting changeset C${GT_CURCSID} (${GT_NCS} left):"
-    echo "Author:  ${GT_CURCSAUTHOR} -> ${GT_OWNERMAP["${GT_CURCSAUTHOR}"]}"
-    echo "Date:    ${GT_CURCSDATE}"
-    echo "Message: ${GT_CURCSMESSAGE}"
+    # If the user also provided a git remote in the script args, then replace the git origin in the existing repo with the provided one
+    if [ -n "${git_remote}" ]
+    then
+
+        print_status_update "Git remote provided in script args, overwriting git remote origin in existing repo"
+
+        # cd to the target directory, saving the current pwd to the stack
+        pushd "$git_target_directory" 1> /dev/null || pushd_popd_cd_error
+
+        # remove the origin from the git repo metadata
+        git remote rm origin
+
+        # Add the provided remote
+        if ! git remote add origin "${git_remote}"
+        then
+
+            # If adding the provided remote fails
+            popd 1> /dev/null || pushd_popd_cd_error
+            print_error_and_exit "Could not re-add git remote origin. Check git output"
+
+        fi
+
+        # pop the target directory from the stack, and cd to the previous pwd
+        popd 1> /dev/null || pushd_popd_cd_error
+
+    fi
+
+    # Check the output of git log to read the most recent commit message, to extract a changeset ID number to continue from
+    # cd to the target directory, saving the current pwd to the stack
+    pushd "$git_target_directory" 1> /dev/null || pushd_popd_cd_error
+
+    # Get just the subject line of the last commit
+    # [ADO-6] Added test3
+    last_commit_subject_line=$(git log -1 --pretty=%s)
+
+    # If the subject line matches the regex, with the capture group
+    last_commit_changeset_regex="^\[ADO-([0-9]+)\]"
+    if [[ $last_commit_subject_line =~ $last_commit_changeset_regex ]]
+    then
+
+        # Then get the content from the first regex matching capture group
+        last_commit_changeset=$(("${BASH_REMATCH[1]}"))
+        continue_from_changeset=$((last_commit_changeset+1))
+
+        print_status_update "Found latest changeset $last_commit_changeset already committed. Continuing from changeset $continue_from_changeset"
+
+    fi
+
+    # pop the target directory from the stack, and cd to the previous pwd
+    popd 1> /dev/null || pushd_popd_cd_error
+
+}
+
+
+function configure_git() {
+
+    # Configure Git, to avoid issues and noise
+    git config --global init.defaultBranch "main"
+    git config --global user.name "TFS to Git Migrator"
+    git config --global user.email "tfs@example.com"
+
+    # # If the user provided a personal access token, then store it in a Git credential helper
+    # if [ -z "$git_personal_access_token" ]
+    # then
+
+    #     # shellcheck disable=SC2086 # Disable double quote warning
+    #     git config --global credential.helper "!f() { echo username=author; echo "password=$git_personal_access_token"; };f"
+
+    # fi
+
+}
+
+
+function create_new_target_repo() {
+
+    # Validate the user provided a git remote in the script args
+    if [ -z "${git_remote}" ]
+    then
+        print_error_and_exit "Git remote (-r) is required for a new repository"
+    fi
+
+    # If the target directory exists, delete it
+    if [ -d "${git_target_directory}" ]
+    then
+        print_status_update "${git_target_directory} target directory already exists, deleting it"
+        rm -rf "$git_target_directory"
+    fi
+
+    # Create the target directory if it doesn't exist
+    if ! mkdir -p "${git_target_directory}"
+    then
+        print_error_and_exit "Could not create target directory ${git_target_directory}"
+    fi
+
+    # cd into the newly created target directory, pushing the pwd to the directory stack
+    pushd "$git_target_directory" 1> /dev/null || pushd_popd_cd_error
+
+    # Initialize the new git repository
+    if ! git init
+    then
+        popd 1> /dev/null || pushd_popd_cd_error
+        print_error_and_exit "Could not initialize the git repository in ${git_target_directory}"
+    fi
+
+    # Add the provided git remote
+    print_status_update "Adding git remote origin"
+    if ! git remote add origin "${git_remote}"
+    then
+        popd 1> /dev/null || pushd_popd_cd_error
+        print_error_and_exit "Could not add git remote origin. Check git output"
+    fi
+
+    # pop the target directory from the stack, and cd to the previous pwd
+    popd 1> /dev/null || pushd_popd_cd_error
+
+}
+
+
+function create_and_stage_git_ignore_file() {
+
+    print_status_update "Adding initial .gitignore file to exclude .tf directory"
+
+    # cd into the target directory
+    pushd "$git_target_directory" 1> /dev/null || pushd_popd_cd_error
+
+    # This function is only called when setting up a new git repo, so we're not worried about entering duplicate lines
+    # Create the .gitignore file if it doesn't exist (it shouldn't)
+    # Add .tf to the .gitignore file
+    echo '.tf*' >> ".gitignore"
+
+    # If the user provided a file path to a .gitignore file in the script args, cat its contents into the new repo's .gitignore file
+    if [ -n "${git_ignore_file}" ]
+    then
+        cat "${git_ignore_file}" >> ".gitignore"
+    fi
+
+    # Stage the .gitignore file to be committed to the repo
+    if ! git add .gitignore
+    then
+        popd 1> /dev/null || pushd_popd_cd_error
+        print_error_and_exit "Could not stage .gitignore file. Check git output"
+    fi
+
+    popd 1> /dev/null || pushd_popd_cd_error
+
+}
+
+
+function create_migration_tfs_workspace() {
+
+    # TODO: Check if the workspace exists before trying to delete it
+
+    # Delete the workspace if it already exists
+    print_status_update "Deleting ${tfs_workspace} workspace if it already exists (allowed to fail)"
+    tf workspace -delete -noprompt "${tfs_workspace}" -collection:"${tfs_collection}" >/dev/null
+
+    # Create the workspace for the migration
+    # Note that this workspace will continue to exist as created, until this script is run again, which will delete and recreate it
+    print_status_update "Creating ${tfs_workspace} workspace for collection ${tfs_collection}"
+    if ! tf workspace -new -noprompt "${tfs_workspace}" -collection:"${tfs_collection}"
+    then
+        print_error_and_exit "Failed to create new ${tfs_workspace} workspace for collection ${tfs_collection}"
+    fi
+
+    # Unmap the default source from workspace creation, if any
+    # Shouldn't be any in a new workspace
+    print_status_update "Unmapping the TFS source from the workspace working folders (allowed to fail)"
+    tf workfold -unmap -workspace:"${tfs_workspace}" "${tfs_source_repo_path}"
+
+    # Map the target directory to the workspace
+    print_status_update "Mapping TFS source ${tfs_source_repo_path} to Git target directory ${git_target_directory}"
+    if ! tf workfold -map -workspace:"${tfs_workspace}" "${tfs_source_repo_path}" "${git_target_directory}"
+    then
+        print_error_and_exit "Failed to map TFS source repo to workspace. Check tf output"
+    fi
+
+    # Now there should be a folder mapping, otherwise there's trouble
+    print_status_update "Outputting the folder mapping to visually verify them"
+    tf workfold -workspace:"${tfs_workspace}"
+
+}
+
+
+function get_tfs_repo_history() {
+
+    # Changeset ID range formatting
+    # "C2~T" # Start at 2, end at latest
+    # C is changeset, optional if specifying just a number
+    # T is tip, or latest
+    # ~ is the range
+    # "2~10" # Start at 2, end at 10
+    # https://learn.microsoft.com/en-us/azure/devops/repos/tfvc/use-team-foundation-version-control-commands?view=azure-devops#use-a-version-specification-argument-to-specify-affected-versions-of-items
+
+    # If continue_from_changeset is set
+    # Then don't bother pulling history from before then
+    # And ignore the value the user provided in --history-start-changeset
+    if [[ -n $continue_from_changeset ]]
+    then
+        tfs_history_start_changeset=$continue_from_changeset
+    fi
+
+    # Check the latest changeset in the repo
+    # Get it in XML
+    if ! tf history \
+        "${tfs_source_repo_path}" \
+        -workspace:"${tfs_workspace}" \
+        -stopafter:1 \
+        -recursive \
+        -format:xml \
+        -noprompt \
+        >"${tfs_latest_changeset_xml}"
+    then
+        print_error_and_exit "Unable to get latest changeset ID. See tf output"
+    fi
+
+    # Convert it to JSON
+    if ! xml2json -t xml2json -o "${tfs_latest_changeset_json}" "${tfs_latest_changeset_xml}"
+    then
+        print_error_and_exit "Unable to convert latest changeset to JSON. See file ${tfs_latest_changeset_xml}"
+    fi
+
+    # Read it from JSON
+    tfs_latest_changeset_id=$(jq -r '.history.changeset."@id"' "${tfs_latest_changeset_json}")
+
+    # If tfs_history_start_changeset -gt latest, then we're already caught up, exit 0
+    if [[ "$tfs_history_start_changeset" -gt "$tfs_latest_changeset_id" ]]
+    then
+        print_status_update "Latest changeset from TFS is $tfs_latest_changeset_id, and latest changeset in the Git repo is $last_commit_changeset. No more history to migrate, exiting."
+        cleanup
+        Exit 0
+    fi
+
+    # Set our tfs_history_end_changeset to the start + the batch size
+    tfs_history_end_changeset=$((tfs_history_start_changeset + changelist_batch_size - 1))
+
+    # If $tfs_history_end_changeset -gt latest, then set tfs_history_end_changeset=latest
+    if [[ "$tfs_history_end_changeset" -gt "$tfs_latest_changeset_id" ]]
+    then
+        print_status_update "Latest changeset from TFS is $tfs_latest_changeset_id, migrating up to latest."
+        tfs_history_end_changeset=$tfs_latest_changeset_id
+    fi
+
+    print_status_update "Getting history of $tfs_source_repo_path, from changeset $tfs_history_start_changeset to changeset $tfs_history_end_changeset; this may take a long time, depending on TFS changeset sizes"
+
+    # Delete any existing history file from previous executions
+    rm -f "$tfs_repo_history_file_xml"
+
+    # Download the TFS history in xml format, and output to the $tfs_repo_history_file_xml
+    if ! tf history \
+        "${tfs_source_repo_path}" \
+        -workspace:"${tfs_workspace}" \
+        -version:"${tfs_history_start_changeset}~${tfs_history_end_changeset}" \
+        -recursive \
+        -format:xml \
+        -noprompt \
+        >"${tfs_repo_history_file_xml}"
+    then
+        print_error_and_exit "Unable to get TFVC history. See tf output"
+    fi
+
+}
+
+
+function convert_tfs_repo_history_file_from_xml_to_json() {
+
+    # Convert TF's XML file to JSON format to be much easier to work with
+    if ! xml2json -t xml2json -o "${tfs_repo_history_file_json}" "${tfs_repo_history_file_xml}"
+    then
+        print_error_and_exit "Unable to convert history to JSON. See file ${tfs_repo_history_file_xml}"
+    fi
+
+    # Count and print the number of changesets in the TFS repo's history
+    count_of_changesets=$(jq '.history.changeset | length' "${tfs_repo_history_file_json}")
+    print_status_update "$count_of_changesets changesets in history"
+
+}
+
+
+function load_tfs_changeset_sequence_old_to_new() {
+
+    # TFS XML output must have stored changesets in reverse chronological order? so reversing order for git?
+    tfs_changeset_sequence=$(jq -r '[.history.changeset[]["@id"]] | reverse[]' "${tfs_repo_history_file_json}")
+
+}
+
+
+function map_authors() {
+
+    # Validate that the name mapping JSON file provided in the user args exists
+    if [ ! -f "$author_name_mapping_file" ]
+    then
+        print_error_and_exit "Owner mapping file ${author_name_mapping_file} does not exist"
+    fi
+
+    # Get a list of unique authors' email addresses from the TFS repo history file
+    # jq -r '[.history.changeset[]["@owner"]] | unique[]' gtfotfs-migration-workspace-history.json
+    authors_email_addresses_to_map_from_tfs_history=$(jq -r '[.history.changeset[]["@owner"]] | unique[]' "${tfs_repo_history_file_json}")
+
+    # Iterate through the list of authors from the TFS repo history file
+    while IFS="" read -r author_to_map_from_tfs_history
+    do
+
+        # Use jq to search the $author_name_mapping_file for the author's email address from the TFS repo history file
+        author=$(jq -r '.["'"${author_to_map_from_tfs_history//\\/\\\\}"'"]' "$author_name_mapping_file")
+        # jq -r '.["'"${author_to_map_from_tfs_history//\\/\\\\}"'"]' authors.json
+
+        # If jq didn't find this author from the TFS history in the $author_name_mapping_file, then exit
+        if [ -z "${author}" ]
+        then
+
+            # TODO: Write all authors from the TFS repo history not found in the author_name_mapping_file
+            # back out to the author_name_mapping_file, with friendly formatting,
+            # before exiting, so that the user can check the file and fill in all missing authors in one execution,
+            # instead of having to re-run this script multiple times to find all the missing authors
+            print_error_and_exit "No mapping found for author ${author_to_map_from_tfs_history} in ${author_name_mapping_file}"
+        fi
+
+        # Store the author in the associative array
+        author_mapping_array["${author_to_map_from_tfs_history}"]="${author}"
+
+    # Read the next line from the authors_email_addresses_to_map_from_tfs_history list, from the TFS history
+    done < <(tr ' ' '\n' <<<"${authors_email_addresses_to_map_from_tfs_history}")
+
+    # Output the name mapping to the user for visual verification
+    print_status_update "Authors found in TFS repo history and read from $author_name_mapping_file:"
+    for author_iterator in "${!author_mapping_array[@]}"
+    do
+        echo "$author_iterator -> ${author_mapping_array[$author_iterator]}"
+    done
     echo ""
 
-    pushd "${GT_TARGETDIR}" || gtfotfs::cd_error
+}
 
-    if ((GT_FIRSTCOMMIT > 0)); then 
-      if ! tf get "${GT_TARGETDIR}" -force -recursive -noprompt -version:"C${GT_CURCSID}" ; then
-        popd || gtfotfs::cd_error
-        gtfotfs::error "Error while getting first commit. See tf output."
-      fi
-      GT_FIRSTCOMMIT=0
+
+function migrate_tfs_changesets_to_git_commits() {
+
+    # If continue_from_changeset is set, then this isn't our first commit
+    if [[ -n $continue_from_changeset ]]
+    then
+        first_commit=false
     else
-      if ! tf get "${GT_TARGETDIR}" -recursive -noprompt -version:"C${GT_CURCSID}" ; then
-        popd || gtfotfs::cd_error
-        gtfotfs::error "Error while getting current commit. See tf output."
-      fi
+        first_commit=true
     fi
 
-    export GIT_AUTHOR_DATE="${GT_CURCSDATE}"
-    export GIT_COMMITTER_DATE=$GIT_AUTHOR_DATE
+    # Iterate through $tfs_changeset_sequence
+    while read -r current_changeset_id
+    do
 
-    if ! git add . ; then
-      popd || gtfotfs::cd_error
-      gtfotfs::error "Error while staging files. See git output."
-    fi
-    
-    if ! git commit --allow-empty -am "[TFS-${GT_CURCSID}] ${GT_CURCSMESSAGE}" --author="${GT_OWNERMAP["${GT_CURCSAUTHOR}"]}" ; then
-      popd || gtfotfs::cd_error
-      gtfotfs::error "Error while committing changes. See git output."
-    fi
+        # Read changeset information from the JSON history file
+        current_changeset_info=$(jq -c '.history.changeset[] | select (.["@id"] == "'"${current_changeset_id}"'") | [.comment["#text"], .["@owner"], .["@date"]]' "${tfs_repo_history_file_json}")
 
-    (( GT_NCS-- ))
-    popd || gtfotfs::cd_error
-    echo ""
-  done <<< "${GT_CSSEQ}"
+        # Extract fields from the changeset info
+        current_changeset_message=$(echo "${current_changeset_info}" | jq -r '.[0]')
+        current_changeset_author=$( echo "${current_changeset_info}" | jq -r '.[1]')
+        current_changeset_date=$(   echo "${current_changeset_info}" | jq -r '.[2]')
+
+        # Validate (again) that the author is mapped
+        # If the above jq commands fail, then this line will likely fail with a "bad array subscript" error
+        if [ -z "${author_mapping_array["${current_changeset_author}"]}" ]
+        then
+            print_error_and_exit "Source author ${current_changeset_author} is not mapped"
+        fi
+
+        # Decrement the number of changesets remaining
+        ((count_of_changesets--))
+
+        # Print commit details to the user to show progress
+        print_status_update "Downloading changeset ${current_changeset_id} from TFS [${count_of_changesets} remaining]:"
+        echo "Author:  ${current_changeset_author} -> ${author_mapping_array["${current_changeset_author}"]}"
+        echo "Date:    ${current_changeset_date}"
+        echo "Message: ${current_changeset_message}"
+        echo ""
+
+        # cd to the target directory to run commands from there
+        # Have to cd in and out of the directory, so that jq can read $tfs_repo_history_file_json each iteration, without having $tfs_repo_history_file_json in the repo
+        pushd "$git_target_directory" 1> /dev/null || pushd_popd_cd_error
+
+        # Sync the files in the changeset from TFS
+        if $first_commit
+        then
+
+            # On first commit, force the tf get command
+            if ! tf get . -recursive -noprompt -version:"C${current_changeset_id}" -force
+            then
+                popd 1> /dev/null || pushd_popd_cd_error
+                print_error_and_exit "Error while getting first commit. See tf output"
+            fi
+            first_commit=false
+
+            # An argument error occurred:
+            # The workspace could not be determined from any argument paths or the current working directory.
+            # It seems like this script cannot be run from a cousin directory, must be run from a parent directory of the git_target_directory
+
+        else
+
+            # On subsequent commits, don't force the tf get command
+            if ! tf get . -recursive -noprompt -version:"C${current_changeset_id}"
+            then
+                popd 1> /dev/null || pushd_popd_cd_error
+                print_error_and_exit "Error while getting current commit. See tf output"
+            fi
+
+        fi
+
+        # Using environment variables for the dates, because Git doesn't allow setting GIT_COMMITTER_DATE by CLI arg
+        export GIT_AUTHOR_DATE="${current_changeset_date}"
+        export GIT_COMMITTER_DATE="${current_changeset_date}"
+
+        # Stage files to commit
+        if ! git add .
+        then
+            popd 1> /dev/null || pushd_popd_cd_error
+            print_error_and_exit "Error while staging files. See git output"
+        fi
+
+        # Print the new working directory to show where this command is getting run from
+        print_status_update "Committing changeset ${current_changeset_id} to git repo"
+
+        # Commit files
+        # nothing to commit, working tree clean # Also an error that need to consider
+        if ! git commit \
+            --all \
+            --allow-empty \
+            --author="${author_mapping_array["${current_changeset_author}"]}" \
+            --message="[ADO-${current_changeset_id}] ${current_changeset_message}"
+        then
+            popd 1> /dev/null || pushd_popd_cd_error
+            print_error_and_exit "Error while committing changes. See git output"
+        fi
+
+        echo ""
+
+        # cd back out of the repo, so jq can read $tfs_repo_history_file_json on the next iteration
+        popd 1> /dev/null || pushd_popd_cd_error
+
+    done <<<"${tfs_changeset_sequence}"
+
 }
 
-function gtfotfs::push_to_origin() {
-  pushd "${GT_TARGETDIR}" || gtfotfs::cd_error
 
-  gtfotfs::cstatus "Optimizing repository size."
-  
-  git reflog expire --all --expire=now
-  git gc --prune=now --aggressive
+function git_garbage_collection() {
 
-  gtfotfs::cstatus "Pushing to origin now."
-  if ! git push -u origin --all --force ; then
-    popd || gtfotfs::cd_error
-    gtfotfs::error "Error while pushing to origin. See git output."
-  fi
+    pushd "$git_target_directory" 1> /dev/null || pushd_popd_cd_error
 
-  popd || gtfotfs::cd_error
+    print_status_update "Optimizing repository size by performing git reflog expire and git gc"
+
+    git reflog expire --all --expire=now
+    git gc --prune=now --aggressive
+
+    popd 1> /dev/null || pushd_popd_cd_error
+
 }
+
+
+function git_push() {
+
+    pushd "$git_target_directory" 1> /dev/null || pushd_popd_cd_error
+
+    print_status_update "Force pushing to remote origin now"
+
+    if ! git push -u origin --all --force
+    then
+        popd 1> /dev/null || pushd_popd_cd_error
+        print_error_and_exit "Error while pushing to origin. See git output"
+    fi
+
+    popd 1> /dev/null || pushd_popd_cd_error
+
+}
+
 
 function main() {
-  # No args == help
-  if [[ $# -eq 0 ]] ; then
-    gtfotfs::usage
+
+    parse_and_validate_user_args "$@"
+
+    # Check that all needed dependencies are installed and in $PATH
+    check_dependencies
+
+    # If the user set the -k flag to keep the existing destination repo
+    if $update_existing_target_repo
+    then
+        prepare_keeping_existing_target
+    else
+        configure_git
+        create_new_target_repo
+        create_and_stage_git_ignore_file
+    fi
+
+    # Run the migration process
+    create_migration_tfs_workspace
+    get_tfs_repo_history
+    convert_tfs_repo_history_file_from_xml_to_json
+    load_tfs_changeset_sequence_old_to_new
+    map_authors
+    migrate_tfs_changesets_to_git_commits
+    git_garbage_collection
+    git_push
+
+    # Cleanup
+    cleanup
     exit 0
-  fi
 
-  gtfotfs::check_dependencies tf jq xml2json git java
-
-  # Parse arguments
-  while [[ "$#" -gt 0 ]]; do case $1 in
-    -c|--collection)  GT_COLLECTION="$2"      ;shift;shift;;
-    -s|--source)      GT_REPO="$2"            ;shift;shift;;
-    -h|--history)     GT_FIRSTCS="C$2~T"      ;shift;shift;;
-    -t|--target)      GT_TARGETDIR="$2"       ;shift;shift;;
-    -k|--keep)        GT_KEEPDIR=1            ;shift;shift;;
-    -n|--names)       GT_NAMEFILE="$2"        ;shift;shift;;
-    -r|--remote)      GT_GITREMOTE="$2"       ;shift;shift;;
-    -i|--ignore)      GT_IGNOREFILE="$2"      ;shift;shift;;
-    *) gtfotfs::error "Unknown parameter: $1" ;shift;shift;;
-  esac; done
-
-  # Validate arguments
-  if [ -z "$GT_COLLECTION"  ]; then gtfotfs::error "Collection (-c) is required."; fi;
-  if [ -z "$GT_REPO"        ]; then gtfotfs::error "Repository path (-s) is required."; fi;
-  if [ -z "$GT_TARGETDIR"   ]; then gtfotfs::error "Target directory (-t) is required."; fi;
-  if [ -z "$GT_NAMEFILE"    ]; then gtfotfs::error "Owner map (-n) is required."; fi;
-
-  if ((GT_KEEPDIR > 0)); then 
-    gtfotfs::prepare_target_exisiting
-  else
-    gtfotfs::prepare_target_new
-    gtfotfs::stage_ignore_file
-  fi
-
-  gtfotfs::create_temp_workspace
-  gtfotfs::get_tfs_history
-  gtfotfs::convert_history
-  gtfotfs::cs_sequence_old_to_new
-  gtfotfs::lick_authors_into_shape
-  gtfotfs::migrate
-  gtfotfs::push_to_origin
-
-  gtfotfs::cleanup
-  exit 0
 }
 
-trap "gtfotfs::cleanup; exit 1" SIGHUP SIGINT SIGQUIT SIGPIPE SIGTERM
+# Trap if user hits CTRL-C during script
+trap "cleanup; exit 1" SIGHUP SIGINT SIGQUIT SIGPIPE SIGTERM
 
+# Execute the main function
 main "$@"
