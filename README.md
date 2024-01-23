@@ -1,90 +1,94 @@
-# GTFO TFS!
+# TFS to Git Conversion Tool
 
-TFVC to Git Migration tool. Made for unattended migration using a unix system, i.e. it doesn't need Windows. Please follow the complete migration guide or you *will* run into issues!
+TFVC repo goes in, Git repo comes out
+
+Forked from https://github.com/turbo/gtfotfs then substantially refactored
+
+Made for unattended migration using a unix system, i.e. doesn't require Windows like git-tfs
+
+Doesn't run on Apple Silicon Macs until https://github.com/microsoft/team-explorer-everywhere/issues/334 is resolved
+
+Developed and tested on Ubuntu, YMMV
 
 ## Migration Guide
 
-### Step 1: Setup
+### Step 1: Install and configure prerequisites
 
-gtfotfs is a Bash 4 script and needs
+1. Java
+  - Required by `tf`
+  - `apt install default-jre`
+2. `tf`
+  - Team Explorer Everywhere, Microsoft's Java CLI for TFS
+  - Requires Java
+  - This script assumes `tf` will use saved credentials
+  - Initial setup:
+    - Download latest from https://github.com/Microsoft/team-explorer-everywhere/releases
+    - `export TF_AUTO_SAVE_CREDENTIALS=1`
+    - `tf eula -accept`
+    - Run any `tf` command, and supply account credentials using the `-login` option, ex. `tf workspaces -collection:https://dev.azure.com/YourCollectionName/ -login:user@domain.com,accesstoken`
+3. `jq`
+  - Standard JSON query tool
+  - Install via your package manager, ex. `apt install jq`
+4. `xml2json`
+  - Install via `pip install https://github.com/hay/xml2json/zipball/master`
+5. `git`
 
-- `tf` (Team Explorer Everywhere, MS's Java client for TFS)
-  - Download from MS [here](https://github.com/Microsoft/team-explorer-everywhere/releases)
-  - Run `tf eula`  and accept the EULA
-  - `export TF_AUTO_SAVE_CREDENTIALS=1`
-  - Run *any* `tf` command and supply account credentials using the `-login` option.
-  - From now on, `tf` uses the saved credentials. gtfotfs assumes `tf` uses saved credentials.
-- `jq` (JSON query tool)
-  - Install via your package manager, e.g. `apt install jq`.
-- `xml2json`
-  - Install via `pip install https://github.com/hay/xml2json/zipball/master`.
-- `git`
-  - Use a recent version from the Git PPA!
+Ensure these prerequisites are under directories in your $PATH
 
-Then go to the [releases](https://github.com/turbo/gtfotfs/releases) page to download the current stable version.
+`echo ‘export PATH="/installeddirectory/:$PATH"’ >> ~/.bashrc`
+
+`source ~/.bashrc`
 
 
-### Step 2: Preparing the TFVC Repository
+### Step 2: Source TFVC repository path
 
-gtfotfs expects a single source path in the form of `$/contoso/superapp/master`. Make sure that whatever path you supply (down to what TFS dares to call *branch*) contains everything you need to build your project.
+This script is currently written to only convert a single source path (i.e. single branch or lower) into a single git repo, but building support for multiple branches is on our radar
 
-### Step 3: Choosing What to Keep
+Choose your path from your TFVC repo, and provide it in the format `$/directory/path`
 
-- Identify the numeric ID of the changeset you want the migration to start at, e.g. `1337`. Any history before that will be lost.
-- Optionally, create a `.gitignore` file. This can be passed to gtfotfs and will be applied to all commits, dropping files in the TFVC repository which do not match the filter. This is a good way to get rid of some historical mess.
+### Step 3: Choose what to migrate
 
-In general, aim to make the resulting repository as clean as possible. Only code, or other plain text documents should live in a git repo. Exclude build artifacts, binaries, PDFs, compressed archives etc.
+- History
+  - Pick the oldest changeset ID you want migration to start with to retain history; the default behaviour is to retain all history, but this can be quite slow
+- `.gitignore`
+  - You can create a `.gitignore` file, and pass it in as a command arg. It will be committed to the destination git repo, so the git CLI will apply it to all commits, dropping the matching files from the TFVC repository
+  - This is a good way to exclude binary or media files from the git repo
 
-### Step 4: Creating a New Remote
+### Step 4: Create a new remote repo
 
-Set up an empty git repository somewhere and copy the remote origin path. gtfotfs assumes the machine which it is running on has push access to that remote. If not, the script will fail in the final stage, but a local copy of the result repo remains for you to debug.
+- If you want this script to push the git repo to a remote, provide the full repo URL in the `--remote` arg
+- Set up an empty git repository somewhere and copy the remote origin path
+- This script assumes the the git CLI already has push access to this remote
+- If not, the final stage to push the repo to this remote will fail, the local copy of the git repo is retained
 
-### Step 5: Prepare Name Mapping
+### Step 5: Map TFS changeset owner names to Git author names
 
-Authors in TFS are saved according to your authentication scheme. These need to be mapped to proper git author tags. See the help output for gtfotfs to learn how to set up a mapping file.
-
-### Step 6: Migrate!
-
-Run `gtfotfs` once without arguments to view the manual. Additionally, here's a complete example of a simple migration:
-
-```bash
-./gtfotfs \
-  --collection "https://tfs.contoso.com/tfs/ProjectCollection" \
-  --source "$/contoso/superapp/master" \
-  --target /tmp/repo \
-  --names `pwd`/name-map.json \
-  --remote "Contoso@vs-ssh.visualstudio.com:v3/Contoso/ConTeam/SuperApp"  \
-  --history 33444 \
-  --ignore `pwd`/my-ignore
+- TFS repo metadata stores authors according to your authentication scheme, ex. `user@domain.com` or `domain\username`
+- These need to be mapped to proper git author tags, ex. `First Last <first.last@domain.com>`
+- Ex.
+```json
+{
+    "first.last@domain.com": "First Last <first.last@domain.com>",
+    ...
+}
 ```
 
-Optionally, you can also supply `-k/--keep`, which will assume the target directory already contains a git repo and simply continue the migration on top of it. In plain english, the above command will recreate the repository at `$/contoso/superapp/master` and it's history, starting from the changeset ID `33444` and stopping at the tip. It will map owners found in the TFVC changesets to proper owner tags in the git commits according to your name mapping file `name-map.json`. The result repo is being built in `/tmp/repo` and an external `.gitignore` file is applied, sourced from `my-ignore`.
+### Step 6: Run
 
-Prepare to make some tea, because this will take quite a while. In a test run, a migration of 3500 changesets across a repo with about 800 MB worth of content took about 10 hours to complete. Original commit dates will of course be preserved.
-
-At the end of this run, before a push is done, the repository is optimized locally.
-
-### Step 7: Integrate
-
-If you have any other TFVC repositories you'd like to migrate, launch a separate migration run with another target. In our test case, there was a separate repo, already in git, which needed to be merged into the main result repo, preserving the history of everything. This can easily be done using git:
+Run the script without arguments to view the manual.
 
 ```bash
-cd /tmp/repo # main repo
-git remote add extra /tmp/repo-extra # other source repo
-git fetch extra --tags
-
-# Merge or rebase, your choice
-git merge --allow-unrelated-histories extra/master # or any other target branch
-
-git remote remove extra
-
-# If neccessary, you can restructure the repo using
-git mv src/ dst/
+./tfs-to-git.sh \
+  --authors ./authors.json \
+  --batch-size 10 \
+  --collection "https://dev.azure.com/YourCollectionName" \
+  --remote "https://github.com/org/repo"  \
+  --source "$/directory/path" \
+  --target ./.repos/org/repo
 ```
 
-## Contributing
+## Notes
 
-- Follow the style of the exisiting code, otherwise read the [shell style guide](https://google.github.io/styleguide/shell.xml)
-- Error check everything
-- Use `shellcheck gtfotfs` to check syntax errors and code smells
-- Avoid adding other dependencies if possible
+1. This can take quite a while. In a test run, a migration of 3500 changesets with 800 MB of content took 10 hours to complete.
+
+2. Original changeset dates will be preserved, and set as both git author and commit dates.
