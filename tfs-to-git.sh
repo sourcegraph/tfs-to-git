@@ -1,6 +1,65 @@
 #!/usr/bin/env bash
 
 # TODO:
+
+    # TODO: Output TFS repo size and number of changesets in history before beginning clone
+
+    # Fix jq query to accommodate the scenario where the XML to JSON conversion results in a single JSON object instead of an array, because there's only one changelist to sync
+        # It seems like $tfs_changeset_sequence is supposed to be an array of changset IDs? but when there's only 1 ID in the variable, it's not an array?
+
+        # Might need to refactor load_tfs_changeset_sequence_old_to_new to return an array even if there's only 1 element
+
+        # while read -r current_changeset_id
+        # done <<<"$tfs_changeset_sequence"
+
+        # 2024-01-23;02:33:44;tfs-to-git;v0.2;INFO;Downloading changeset [ from TFS [0 remaining]:
+        # Author:  marc.leblanc@sourcegraph.com -> Marc LeBlanc <marc.leblanc@sourcegraph.com>
+        # Date:    2024-01-08T22:15:39.547+0000
+        # Message: Created team project folder $/marc-test-tfvc via the Team Project Creation Wizard
+
+        # An argument error occurred: Option 'version' requires a version spec as its value: The changeset version specification was not recognized as a number.
+        # Team Explorer Everywhere Command Line Client (version 14.139.0.202310311513)
+
+        #  get command:
+
+
+    # Missing authors
+        # Add all missing authors to the authors file, in a format that's easy for the admin to fill in
+
+    # Update readme
+        # Provide thorough dependency installation instructions
+        # Fix bug with target path not being able to be a cousin directory, or document it in the README and usage text
+
+    # Exit 3 if there are more changes left after the batch size is exhausted
+        # So the calling script knows to call it again sooner than having to wait for the next interval
+
+    # Add stats for download times and storage size, number of changed files
+        # Cleanup and exit function prints stats for changesets processed, total changed files, total MB downloaded, repo size, time spent downloading, execution time
+
+    # Sort out local git config
+        # Reconfigure committer user.name/email based on author mapping
+
+    # Test connectivity to endpoints before beginning
+        # If Git remote is provided, test its connection during input validation (ie. git can access credentials, start a session, network connectivity, etc.)
+
+    # In the calling script, take list of repos as an arg in the code hosts yaml file
+        # Default “all”
+        # Parallelize by running on multiple repos at a time
+
+    # Sort out credential handling
+        # Git PAT if provided
+        # Environment variables
+
+    # Rewrite in Go / Python?
+        # Use a high performance git library
+        # Go may make it easier to get integrated into the product, so then we get the added benefits of perms syncing, etc.
+
+    # Branch mode
+        # Would take a bunch more time, so we'd need to validate that with the customer before spending that time on it
+        # Might name the git repo after the collection name
+
+
+
     # How will the customer want to use this script?
 
         # This isn't like Git, where you could just provide an Org (collection), and it could query the API to get a list of all repos, and clone them
@@ -54,63 +113,6 @@
                 # .git (repo)
                 # .tfs-to-git/ (working files)
 
-    # Check tf workspace before recreating it
-
-    # Fix jq query to accommodate the scenario where the XML to JSON conversion results in a single JSON object instead of an array, because there's only one changelist to sync
-        # It seems like $tfs_changeset_sequence is supposed to be an array of changset IDs? but when there's only 1 ID in the variable, it's not an array?
-
-        # Might need to refactor load_tfs_changeset_sequence_old_to_new to return an array even if there's only 1 element
-
-        # while read -r current_changeset_id
-        # done <<<"$tfs_changeset_sequence"
-
-        # 2024-01-23;02:33:44;tfs-to-git;v0.2;INFO;Downloading changeset [ from TFS [0 remaining]:
-        # Author:  marc.leblanc@sourcegraph.com -> Marc LeBlanc <marc.leblanc@sourcegraph.com>
-        # Date:    2024-01-08T22:15:39.547+0000
-        # Message: Created team project folder $/marc-test-tfvc via the Team Project Creation Wizard
-
-        # An argument error occurred: Option 'version' requires a version spec as its value: The changeset version specification was not recognized as a number.
-        # Team Explorer Everywhere Command Line Client (version 14.139.0.202310311513)
-
-        #  get command:
-
-
-    # Missing authors
-        # Add all missing authors to the authors file, in a format that's easy for the admin to fill in
-
-    # Update readme
-        # Provide thorough dependency installation instructions
-        # Fix bug with target path not being able to be a cousin directory, or document it in the README and usage text
-
-    # Exit 3 if there are more changes left after the batch size is exhausted
-        # So the calling script knows to call it again sooner than having to wait for the next interval
-
-    # Add stats for download times and storage size, number of changed files
-        # Cleanup and exit function prints stats for changesets processed, total changed files, total MB downloaded, repo size, time spent downloading, execution time
-
-    # Sort out local git config
-        # Reconfigure committer user.name/email based on author mapping
-
-    # Test connectivity to endpoints before beginning
-        # If Git remote is provided, test its connection during input validation (ie. git can access credentials, start a session, network connectivity, etc.)
-
-    # Sort out credential handling
-        # Git PAT if provided
-        # tf -login if username / password provided
-        # Environment variables
-
-    # Rewrite in Go / Python?
-        # Use a high performance git library
-        # Go may make it easier to get integrated into the product, so then we get the added benefits of perms syncing, etc.
-
-    # Branch mode
-        # Would take a bunch more time, so we'd need to validate that with the customer before spending that time on it
-        # Might name the git repo after the collection name
-
-    # In the calling script, take list of repos as an arg in the code hosts yaml file
-        # Default “all”
-        # Parallelize by running on multiple repos at a time
-
 
 # Declare global variables
 # declare -A is an associative array
@@ -129,7 +131,7 @@ declare     git_default_committer_name="TFS-to-Git"
 declare     git_force_push=false
 declare     git_ignore_content=".tf* \n.tfs-to-git"
 declare     git_ignore_file
-declare     git_remote
+declare     git_remote_url
 declare     git_target_directory
 declare     git_target_directory_root
 declare     initial_pwd
@@ -142,22 +144,25 @@ declare     missing_dependencies
 declare -r  script_name="tfs-to-git"
 declare     log_file="./$script_name.log"
 declare -r  script_version="v0.2"
-declare -a  tfs_changeset_sequence
+declare     tfs_changeset_sequence
 declare     tfs_collection
 declare -i  tfs_history_start_changeset=1
 declare     tfs_latest_changeset_json
 declare     tfs_latest_changeset_xml
+declare     tfs_access_token_arg
 declare     tfs_repo_history_file_json
 declare     tfs_repo_history_file_xml
 declare     tfs_server="https://dev.azure.com"
 declare     tfs_source_repo_path="$/"
-declare -r  tfs_workspace="tfs-to-git-migration"
+declare     tfs_username_arg
+declare     tfs_workspace
 declare     validate_paths=false
 declare     working_files_directory
 
 # Colours for formatting stdout
 declare -r  error_red_colour='\033[0;31m'
 declare -r  info_yellow_colour='\033[0;33m'
+declare -r  warning_orange_colour='\033[0;35m'
 declare -r  reset_colour='\033[0m'
 
 # Environment variables used because Git doesn't allow setting committer date by command line args
@@ -188,6 +193,10 @@ function log() {
         "INFO")
             log_level_event="INFO"
             colour=$info_yellow_colour
+            ;;
+        "WARNING")
+            log_level_event="WARNING"
+            colour=$warning_orange_colour
             ;;
         "ERROR")
             log_level_event="ERROR"
@@ -330,6 +339,22 @@ function print_usage_instructions_and_exit() {
         Hostname of your TFS / Azure DevOps server
         Default: https://dev.azure.com
 
+    --tfs-token, --tfs-access-token
+        Access token of an account on your TFS / Azure DevOps server to
+        download repo content.
+
+        TFS access token can also be stored in environment variable TFS_ACCESS_TOKEN
+        If provided as both environment variable and command arg, the command
+        arg will take precedence
+
+    --tfs-user, --tfs-username
+        Login username of an account on your TFS / Azure DevOps server to
+        download repo content
+
+        TFS username can also be stored in environment variable TFS_USERNAME
+        If provided as both environment variable and command arg, the command
+        arg will take precedence
+
     -v, --version
         Print the script version and exit
 
@@ -404,7 +429,7 @@ function parse_and_validate_user_args() {
             shift
             ;;
         -r | --remote | --git-remote)
-            git_remote="$2"
+            git_remote_url="$2"
             shift
             shift
             ;;
@@ -415,6 +440,16 @@ function parse_and_validate_user_args() {
             ;;
         -t | --tfs | --tfs-server)
             tfs_server=$2
+            shift
+            shift
+            ;;
+        --tfs-token | --tfs-access-token)
+            tfs_access_token_arg=$2
+            shift
+            shift
+            ;;
+        --tfs-user | --tfs-username)
+            tfs_username_arg=$2
             shift
             shift
             ;;
@@ -466,12 +501,24 @@ function set_file_paths_after_parsing_user_args(){
     # Assemble the git target directory path
     git_target_directory=$initial_pwd/$git_target_directory_root/$tfs_server_for_path/$tfs_collection_for_path
 
+    # Set the name of the TFS workspace to use for migration based on user inputs
+    # to avoid conflicting workspace names when processing multiple branches of the same collection in parallel
+    # $tfs_workspace naming conflicts
+        # Could be running many parallel executions for different paths / branches in the same collection
+        # Could be running many parallel executions for different collections on the same server
+    # Error TF10131: workspace name
+        # contains more than 64 characters
+        # contains one of the following characters: "/:<>\|*?;
+        # or ends with a space
+    tfs_workspace="t2g-$tfs_collection_for_path"
+
     # If tfs_source_repo_path_for_path is not empty, then append it to git_target_directory
     # To avoid a trailing - if the repo path is the default $/ root
     if [[ -n $tfs_source_repo_path_for_path ]]
     then
 
         git_target_directory+="-$tfs_source_repo_path_for_path"
+        tfs_workspace+="-$tfs_source_repo_path_for_path"
 
     fi
 
@@ -483,10 +530,11 @@ function set_file_paths_after_parsing_user_args(){
     tfs_latest_changeset_json="$working_files_directory/latest-changeset.json"
     tfs_latest_changeset_xml="$working_files_directory/latest-changeset.xml"
 
-
+    # If the user provided the --validate-paths flag
     if $validate_paths
     then
 
+        echo "Validating paths"
         echo "git_target_directory:         $git_target_directory"
         echo "server/collection/path:       $tfs_server/$tfs_collection/$tfs_source_repo_path"
         echo "tfs_repo_history_file_json:   $tfs_repo_history_file_json"
@@ -620,9 +668,11 @@ function create_or_update_repo(){
     else
 
         # If no, initialize the new git repository
-        if ! git init
+        if git init >/dev/null 2>&1
         then
-            error "Could not initialize the git repository in $git_target_directory"
+            info "Initializing new git repository in $git_target_directory"
+        else
+            error "Could not initialize new git repository in $git_target_directory"
         fi
 
         git_config_global
@@ -631,18 +681,27 @@ function create_or_update_repo(){
     fi
 
     # If the user provided a git remote in the script args, then configure it
-    if [ -n "$git_remote" ]
+    if [ -n "$git_remote_url" ]
     then
 
         # Remove the existing origin from the git repo metadata, if it exists
         git remote rm origin >/dev/null 2>&1
 
         # Add the provided remote
-        if ! git remote add origin "$git_remote"
+        if ! git remote add origin "$git_remote_url"
         then
 
             # If adding the provided remote fails
             error "Configuring git remote origin failed" 1> /dev/null
+
+        fi
+
+    else
+        # If the user did not provide a git remote in the script args, check if one is already configured
+        if ! git_remote_url=$(git config --get remote.origin.url)
+        then
+
+            debug "Couldn't read git config --get remote.origin.url from the repo"
 
         fi
 
@@ -694,7 +753,7 @@ function git_config_global() {
 
 function create_and_stage_git_ignore_file() {
 
-    info "Adding initial .gitignore file to exclude working directories"
+    info "Creating .gitignore file"
 
     # This function is only called when setting up a new git repo, so we're not worried about entering duplicate lines
     # Add .tf to the .gitignore file
@@ -715,34 +774,194 @@ function create_and_stage_git_ignore_file() {
 }
 
 
-function create_migration_tfs_workspace() {
+function tfs_login() {
 
-    info "Creating $tfs_workspace workspace for collection $tfs_server/$tfs_collection"
+    declare tfs_username
+    declare tfs_access_token
+    declare creds_provided
 
-    # Delete the workspace if it already exists
-    tf workspace -delete -noprompt "$tfs_workspace" -collection:"$tfs_server/$tfs_collection" > /dev/null 2>&1
+    # Export the TF_AUTO_SAVE_CREDENTIALS variable, so that the tf command will save credentials in memory for the rest of the script execution
+    export TF_AUTO_SAVE_CREDENTIALS=1
 
-    # Create the workspace for the migration
-    # Note that this workspace will continue to exist as created, until this script is run again, which will delete and recreate it
-    if ! tf workspace -new -noprompt "$tfs_workspace" -collection:"$tfs_server/$tfs_collection" 1> /dev/null
+    # Accept the EULA
+    tf eula -accept > /dev/null 2>&1
+
+    # If ENV variables are set
+    if [[ -n "$TFS_USERNAME" ]]
     then
-        error "Failed to create new $tfs_workspace workspace for collection $tfs_server/$tfs_collection"
+
+        # Read ENV variables
+        debug "TFS_USERNAME is set"
+        tfs_username="$TFS_USERNAME"
+        creds_provided+="TFS_USERNAME "
+
     fi
 
-    # TFS is different from Perforce, in that a local file path (work folder) can only exist in one workspace at a time
-    # Unmap the target directory from any previous workspace, before mapping it to the new location
-    tf workfold -unmap -workspace:"$tfs_workspace" "$tfs_source_repo_path"  > /dev/null 2>&1
+    # If command args are set
+    if [[ -n "$tfs_username_arg" ]]
+    then
+
+        # Read command args
+        # Overwrite ENV variables if both are set
+        debug "--tfs-username is set"
+        tfs_username="$tfs_username_arg"
+        creds_provided+="--tfs-username "
+
+    fi
+
+    # If ENV variables are set
+    if [[ -n "$TFS_ACCESS_TOKEN" ]]
+    then
+
+        # Read ENV variables
+        debug "TFS_ACCESS_TOKEN is set"
+        tfs_access_token="$TFS_ACCESS_TOKEN"
+        creds_provided+="TFS_ACCESS_TOKEN "
+
+    fi
+
+    # If command args are set
+    if [[ -n "$tfs_access_token_arg" ]]
+    then
+
+        # Read command args
+        # Overwrite ENV variables if both are set
+        debug "--tfs-access-token is set"
+        tfs_access_token="$tfs_access_token_arg"
+        creds_provided+="--tfs-access-token"
+
+    fi
+
+    # If both username and access token are provided
+    if [[ -n "$tfs_username" ]] && [[ -n "$tfs_access_token" ]]
+    then
+
+        # Try logging in
+        if ! tf workspaces -collection:"$tfs_server"/"$tfs_collection" -login:"$tfs_username","$tfs_access_token" > /dev/null 2>&1
+        then
+
+            warning "Failed to login to TFS with provided username $tfs_username and access token"
+
+        fi
+
+    elif [[ -n "$tfs_username" ]] || [[ -n "$tfs_access_token" ]]
+    then
+
+        warning "Missing TFS username or password. Credentials provided: $creds_provided"
+
+    fi
+
+}
+
+
+function create_migration_tfs_workspace() {
+
+    # Booleans for each stage
+    workspace_exists=false
+    workspace_is_valid=true
+
+    # To be valid, tf_workfold must contain all matches
+
+    # Get the existing workfolder
+    # Workspace:  $tfs_workspace
+    # Collection: $tfs_server/$tfs_collection
+    #  $tfs_source_repo_path: $git_target_directory
+    tfs_workfold=$(tf workfold -workspace:"$tfs_workspace" 2> /dev/null)
+
+    debug "tfs_workfold received from $tfs_workspace workspace:\n$tfs_workfold"
+
+    # If $tfs_workfold contains
+    # The workspace 'test' could not be found.
+    # Then the workspace doesn't exist, create it
+    if [[ "$tfs_workfold" == "*The workspace*$tfs_workspace*could not be found*" ]]
+    then
+        # The workspace doesn't exist, skip the rest of checking, and create it
+        info "$tfs_workspace is missing, creating it. \n $tfs_workfold"
+        workspace_exists=false
+    else
+        debug "Workspace already $tfs_workspace exists"
+        workspace_exists=true
+    fi
+
+    # Only check if the workspace is valid if it exists
+    if $workspace_exists
+    then
+
+        # Assemble an array of the lines the workfold must contain to be valid
+        tfs_workfold_parameters=(
+            "$tfs_workspace"
+            "$tfs_server/$tfs_collection"
+            "$tfs_source_repo_path: $git_target_directory"
+        )
+
+        debug "tfs_workfold_parameters: ${tfs_workfold_parameters[*]}"
+
+        # Loop through the array of lines and check if each is in the workfold
+        for line in "${tfs_workfold_parameters[@]}"
+        do
+
+            if [[ "$tfs_workfold" != *"${line}"* ]]
+            then
+
+                debug "Line missing from the $tfs_workspace workspace:\n$line"
+                workspace_is_valid=false
+
+            # else
+                # TODO: Remove each matching line from $tfs_workfold,
+                # Then strip out all non-letter characters
+                # Then count the lines remaining
+                # If there are more than 0 lines remaining,
+                # Then there are extra work folder mappings in the workspace
+
+            fi
+
+        done
+
+    fi
+
+    # If the workspace exists and is valid, then we're good to return and continue to use the existing workspace
+    if $workspace_exists && $workspace_is_valid
+    then
+        info "Reusing the existing $tfs_workspace workspace"
+        return
+    fi
+
+    # If the workspace exists but is not invalid, then delete it
+    if $workspace_exists && ! $workspace_is_valid
+    then
+
+        warning "$tfs_workspace exists and is invalid, deleting it. \n $tfs_workfold"
+
+        # Delete the workspace
+        tf workspace -delete -noprompt "$tfs_workspace" -collection:"$tfs_server/$tfs_collection" > /dev/null 2>&1
+
+    fi
+
+    # Create the workspace for the migration
+    # Note that this script leaves the workspaces existing after the script finishes
+    if ! tf workspace -new -noprompt "$tfs_workspace" -collection:"$tfs_server/$tfs_collection" 1> /dev/null
+    then
+        error "Failed to create new $tfs_workspace workspace for $tfs_server/$tfs_collection"
+    fi
+
+    # TFS is different from Perforce, in that a source path can only exist in one workspace (i.e. one local target directory) at a time
+    # Unmap the source path from any previous workspace, before mapping it to the target directory
+    # Skip this part, it wastes time, and should never be needed; it's okay to error out if it was needed
+    # tf workfold -unmap -workspace:"$tfs_workspace" "$tfs_source_repo_path"  > /dev/null 2>&1
 
     # Map the target directory to the workspace
-    info "Mapping TFS source $tfs_source_repo_path to Git target directory $git_target_directory"
+    debug "Mapping TFS source $tfs_source_repo_path to Git target directory $git_target_directory"
     if ! tf workfold -map -workspace:"$tfs_workspace" "$tfs_source_repo_path" .
     then
         error "Failed to map TFS source repo to workspace. Check tf output"
     fi
 
     # Now there should be a folder mapping, otherwise there's trouble
-    info "Outputting the folder mapping to visually verify them"
-    tf workfold -workspace:"$tfs_workspace"
+    if [[ $log_level_config == "DEBUG" ]]
+    then
+        debug "Outputting the folder mapping to visually verify them"
+        tf workfold -workspace:"$tfs_workspace"
+    fi
 
 }
 
@@ -840,32 +1059,26 @@ function convert_tfs_repo_history_file_from_xml_to_json() {
     fi
 
     # Count and print the number of changesets in the TFS repo's history
-    # count_of_changesets=$(grep -c "@id" $tfs_repo_history_file_json)
-    count_of_changesets=$(jq '.history.changeset | length' "$tfs_repo_history_file_json")
-    info "$count_of_changesets changesets in history"
+    count_of_changesets=$(grep -c "<changeset id=" $tfs_repo_history_file_xml)
+    #count_of_changesets_jq=$(jq '.history.changeset | length' "$tfs_repo_history_file_json")
+    info "Changesets in this batch: $count_of_changesets"
 
 }
 
 
 function load_tfs_changeset_sequence_old_to_new() {
 
-    # If there's only one changeset in the sequence, it doesn't need to be reversed, and xml2json creates the schema differently
-    if [[ $count_of_changesets -eq 1 ]]
+    # Try first to read the JSON as an array, assuming there's more than one changeset in this batch
+    if ! tfs_changeset_sequence=$(jq -r '[.history.changeset[]["@id"]] | reverse[]' "$tfs_repo_history_file_json" 2> /dev/null)
     then
 
-        if ! tfs_changeset_sequence+=($(jq -r '[.history.changeset["@id"]]' "$tfs_repo_history_file_json"))
+        debug "Unable to load the changeset sequence in reverse. See file $tfs_repo_history_file_json"
+
+        # If that fails, then try to read it again as a single item
+        if ! tfs_changeset_sequence=$(jq -r '[.history.changeset["@id"]]' "$tfs_repo_history_file_json" 2> /dev/null)
         then
 
             error "Unable to load the changeset sequence of length 1. See file $tfs_repo_history_file_json"
-
-        fi
-
-    else
-
-        if ! tfs_changeset_sequence+=($(jq -r '[.history.changeset[]["@id"]] | reverse[]' "$tfs_repo_history_file_json"))
-        then
-
-            error "Unable to load the changeset sequence in reverse. See file $tfs_repo_history_file_json"
 
         fi
 
@@ -882,27 +1095,17 @@ function map_authors() {
         error "Owner mapping file $author_name_mapping_file does not exist, and is required"
     fi
 
-    # TODO: FIX THIS
-    # Get a list of unique authors' email addresses from the TFS repo history file
-    authors_email_addresses_to_map_from_tfs_history=$(jq -r '[.history.changeset[]["@owner"]] | unique[]' "$tfs_repo_history_file_json")
-
-    # If there's only one changeset in the sequence, xml2json creates the schema differently
-    if [[ $count_of_changesets -eq 1 ]]
+    # Try first to read tfs_repo_history_file_json as an array, assuming there's more than one changeset in this batch
+    if ! authors_email_addresses_to_map_from_tfs_history=$(jq -r '[.history.changeset[]["@owner"]] | unique[]' "$tfs_repo_history_file_json" 2> /dev/null)
     then
 
-        if ! authors_email_addresses_to_map_from_tfs_history=$(jq -r '[.history.changeset["@owner"]] | unique[]' "$tfs_repo_history_file_json")
+        debug "Unable to get a list of unique authors' email addresses from $tfs_repo_history_file_json"
+
+        # If that fails, then try to read it again as a single item
+        if ! authors_email_addresses_to_map_from_tfs_history=$(jq -r '[.history.changeset["@owner"]] | unique[]' "$tfs_repo_history_file_json" 2> /dev/null)
         then
 
             error "Unable to get the one author's email address from $tfs_repo_history_file_json"
-
-        fi
-
-    else
-
-        if ! authors_email_addresses_to_map_from_tfs_history=$(jq -r '[.history.changeset[]["@owner"]] | unique[]' "$tfs_repo_history_file_json")
-        then
-
-            error "Unable to get a list of unique authors' email addresses from $tfs_repo_history_file_json"
 
         fi
 
@@ -945,12 +1148,15 @@ function map_authors() {
     fi
 
     # Output the name mapping to the user for visual verification
-    debug "Authors found in TFS repo history and read from $author_name_mapping_file:"
-    for author_iterator in "${!author_mapping_array[@]}"
-    do
-        echo "$author_iterator -> ${author_mapping_array[$author_iterator]}"
-    done
-    echo ""
+    if [[ $log_level_config == "debug" ]]
+    then
+        debug "Authors found in TFS repo history and read from $author_name_mapping_file:"
+        for author_iterator in "${!author_mapping_array[@]}"
+        do
+            echo "$author_iterator -> ${author_mapping_array[$author_iterator]}"
+        done
+        echo ""
+    fi
 
 }
 
@@ -967,7 +1173,7 @@ function migrate_tfs_changesets_to_git_commits() {
 
     changesets_remaining=$count_of_changesets
 
-    debug "tfs_changeset_sequence: ${tfs_changeset_sequence[*]}"
+    debug "tfs_changeset_sequence: $tfs_changeset_sequence"
 
     # Iterate through $tfs_changeset_sequence
     while read -r current_changeset_id
@@ -979,9 +1185,13 @@ function migrate_tfs_changesets_to_git_commits() {
         then
 
             # Extract fields from the changeset info
-            current_changeset_message=$(jq -r '.history.changeset.comment."#text"' "$tfs_repo_history_file_json")
-            current_changeset_author=$(jq -r '.history.changeset."@owner"' "$tfs_repo_history_file_json")
+            current_changeset_id=$(jq -r '.history.changeset."@id"' "$tfs_repo_history_file_json")
             current_changeset_date=$(jq -r '.history.changeset."@date"' "$tfs_repo_history_file_json")
+            current_changeset_author=$(jq -r '.history.changeset."@owner"' "$tfs_repo_history_file_json")
+            current_changeset_message=$(jq -r '.history.changeset.comment."#text"' "$tfs_repo_history_file_json")
+
+            # Clear the sequence to avoid iterating on formatting characters
+            tfs_changeset_sequence=""
 
         else
 
@@ -1011,10 +1221,9 @@ function migrate_tfs_changesets_to_git_commits() {
 
         # Print commit details to the user to show progress
         info "Downloading changeset $current_changeset_id from TFS [$changesets_remaining remaining]:"
-        echo "Author:  $current_changeset_author -> ${author_mapping_array["$current_changeset_author"]}"
-        echo "Date:    $current_changeset_date"
-        echo "Message: $current_changeset_message"
-        echo ""
+        info "Author:  $current_changeset_author -> ${author_mapping_array["$current_changeset_author"]}"
+        info "Date:    $current_changeset_date"
+        info "Message: $current_changeset_message"
 
         # Sync the files in the changeset from TFS
         if $first_commit
@@ -1067,6 +1276,11 @@ function migrate_tfs_changesets_to_git_commits() {
 
         echo ""
 
+        if [[ $count_of_changesets -eq 1 ]]
+        then
+            break
+        fi
+
     done <<<"$tfs_changeset_sequence"
 
 }
@@ -1087,6 +1301,8 @@ function git_push() {
     # If no git remote was provided, then skip pushing
     if [[ -z "$git_remote_url" ]]
     then
+
+        debug "No git remote configured, skipping push."
         return
     fi
 
@@ -1126,6 +1342,7 @@ function main() {
     check_dependencies
 
     # If this is a new repo, create it, otherwise grab the latest changeset ID number to continue from
+    tfs_login
     create_or_update_repo
 
     # Run the migration process

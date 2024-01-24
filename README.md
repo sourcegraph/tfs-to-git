@@ -23,9 +23,10 @@ Developed and tested on Ubuntu, YMMV
   - This script assumes `tf` will use saved credentials
   - Initial setup:
     - Download latest from https://github.com/Microsoft/team-explorer-everywhere/releases
-    - `export TF_AUTO_SAVE_CREDENTIALS=1`
-    - `tf eula -accept`
-    - Run any `tf` command, and supply account credentials using the `-login` option, ex. `tf workspaces -collection:https://dev.azure.com/YourCollectionName/ -login:user@domain.com,accesstoken`
+    - Either provide username and access token when running the script for the first time on each machine, or login manually before running the script:
+      - `export TF_AUTO_SAVE_CREDENTIALS=1`
+      - `tf eula -accept`
+      - Run any `tf` command, and supply account credentials using the `-login` option, ex. `tf workspaces -collection:https://dev.azure.com/YourCollectionName/ -login:user@domain.com,accesstoken`
 3. `jq`
   - Standard JSON query tool
   - Install via your package manager, ex. `apt install jq`
