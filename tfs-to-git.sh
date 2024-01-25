@@ -834,7 +834,9 @@ function tfs_login() {
     then
 
         # Try logging in
-        if ! tf workspaces -collection:"$tfs_server"/"$tfs_collection" -login:"$tfs_username","$tfs_access_token" > /dev/null 2>&1
+        if ! tf workspaces \
+                -collection:"$tfs_server/$tfs_collection" \
+                -login:"$tfs_username,$tfs_access_token" > /dev/null 2>&1
         then
 
             warning "Failed to login to TFS with provided username $tfs_username and access token"
@@ -857,20 +859,23 @@ function create_migration_tfs_workspace() {
     workspace_exists=false
     workspace_is_valid=true
 
-    # To be valid, tf_workfold must contain all matches
+    # To be valid, tfs_workfold must contain all matches
 
     # Get the existing workfolder
     # Workspace:  $tfs_workspace
     # Collection: $tfs_server/$tfs_collection
     #  $tfs_source_repo_path: $git_target_directory
-    tfs_workfold=$(tf workfold -workspace:"$tfs_workspace" 2> /dev/null)
+    tfs_workfold=$(tf workfold \
+                        -collection:"$tfs_server/$tfs_collection" \
+                        -workspace:"$tfs_workspace" 2> /dev/null
+                    )
 
     debug "tfs_workfold received from $tfs_workspace workspace:\n$tfs_workfold"
 
     # If $tfs_workfold contains
     # The workspace 'test' could not be found.
     # Then the workspace doesn't exist, create it
-    if [[ "$tfs_workfold" == "*The workspace*$tfs_workspace*could not be found*" ]]
+    if [[ "$tfs_workfold" == *"could not be found"* ]]
     then
         # The workspace doesn't exist, skip the rest of checking, and create it
         info "$tfs_workspace is missing, creating it. \n $tfs_workfold"
@@ -891,7 +896,7 @@ function create_migration_tfs_workspace() {
             "$tfs_source_repo_path: $git_target_directory"
         )
 
-        debug "tfs_workfold_parameters: ${tfs_workfold_parameters[*]}"
+        debug "tfs_workfold_parameters required to be valid: ${tfs_workfold_parameters[*]}"
 
         # Loop through the array of lines and check if each is in the workfold
         for line in "${tfs_workfold_parameters[@]}"
@@ -931,13 +936,21 @@ function create_migration_tfs_workspace() {
         warning "$tfs_workspace exists and is invalid, deleting it. \n $tfs_workfold"
 
         # Delete the workspace
-        tf workspace -delete -noprompt "$tfs_workspace" -collection:"$tfs_server/$tfs_collection" > /dev/null 2>&1
+        tf workspace \
+            -delete \
+            "$tfs_workspace" \
+            -collection:"$tfs_server/$tfs_collection" \
+            -noprompt > /dev/null 2>&1
 
     fi
 
     # Create the workspace for the migration
     # Note that this script leaves the workspaces existing after the script finishes
-    if ! tf workspace -new -noprompt "$tfs_workspace" -collection:"$tfs_server/$tfs_collection" 1> /dev/null
+    if ! tf workspace \
+            -new \
+            "$tfs_workspace" \
+            -collection:"$tfs_server/$tfs_collection" \
+            -noprompt > /dev/null 2>&1
     then
         error "Failed to create new $tfs_workspace workspace for $tfs_server/$tfs_collection"
     fi
@@ -949,7 +962,11 @@ function create_migration_tfs_workspace() {
 
     # Map the target directory to the workspace
     debug "Mapping TFS source $tfs_source_repo_path to Git target directory $git_target_directory"
-    if ! tf workfold -map -workspace:"$tfs_workspace" "$tfs_source_repo_path" .
+    if ! tf workfold \
+            -collection:"$tfs_server/$tfs_collection" \
+            -workspace:"$tfs_workspace" \
+            -map \
+            "$tfs_source_repo_path" .
     then
         error "Failed to map TFS source repo to workspace. Check tf output"
     fi
@@ -958,7 +975,9 @@ function create_migration_tfs_workspace() {
     if [[ $log_level_config == "DEBUG" ]]
     then
         debug "Outputting the folder mapping to visually verify them"
-        tf workfold -workspace:"$tfs_workspace"
+        tf workfold \
+            -collection:"$tfs_server/$tfs_collection" \
+            -workspace:"$tfs_workspace"
     fi
 
 }
@@ -968,7 +987,13 @@ function get_repo_size() {
     info "Getting the repo size, this will tf get -force the latest revision, without intermediate changesets, but won't commit these files to teh git repo, so this will break your converted repo history the next time the script is run; you should run the script again with -fr to force replace the git repo after this finishes"
 
     # Get the lastest version of all files in the workspace
-    if ! tf get . -recursive -noprompt -version:T -force
+    if ! tf get . \
+            -collection:"$tfs_server/$tfs_collection" \
+            -workspace:"$tfs_workspace" \
+            -version:T \
+            -force \
+            -recursive \
+            -noprompt
     then
         error "Error while getting the latest version of all files in the workspace to check repo size"
     fi
@@ -1005,10 +1030,11 @@ function get_tfs_repo_history() {
     # This will always be a single object in the XML output
     if ! tf history \
         "$tfs_source_repo_path" \
+        -collection:"$tfs_server/$tfs_collection" \
         -workspace:"$tfs_workspace" \
         -stopafter:1 \
-        -recursive \
         -format:xml \
+        -recursive \
         -noprompt \
         >"$tfs_latest_changeset_xml"
     then
@@ -1069,6 +1095,7 @@ function get_tfs_repo_history() {
     # Download the TFS history in xml format, and output to the $tfs_repo_history_file_xml
     if ! tf history \
         "$tfs_source_repo_path" \
+        -collection:"$tfs_server/$tfs_collection" \
         -workspace:"$tfs_workspace" \
         -version:"$tfs_history_start_changeset~$tfs_history_end_changeset" \
         -recursive \
@@ -1266,7 +1293,14 @@ function convert_tfs_changesets_to_git_commits() {
         then
 
             # On first commit, force the tf get command
-            if ! tf get . -recursive -noprompt -version:"C$current_changeset_id" -force
+            if ! tf get . \
+                -collection:"$tfs_server/$tfs_collection" \
+                -workspace:"$tfs_workspace" \
+                -version:"C$current_changeset_id" \
+                -force \
+                -recursive \
+                -noprompt
+
             then
                 error "Error while getting first commit. See tf output"
             fi
@@ -1279,7 +1313,12 @@ function convert_tfs_changesets_to_git_commits() {
         else
 
             # On subsequent commits, don't force the tf get command
-            if ! tf get . -recursive -noprompt -version:"C$current_changeset_id"
+            if ! tf get . \
+                -collection:"$tfs_server/$tfs_collection" \
+                -workspace:"$tfs_workspace" \
+                -version:"C$current_changeset_id" \
+                -recursive \
+                -noprompt
             then
                 error "Error while getting current commit. See tf output"
             fi
