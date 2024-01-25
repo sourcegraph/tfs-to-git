@@ -2,42 +2,29 @@
 
 # TODO:
 
-    # TODO: Output TFS repo size and number of changesets in history before beginning clone
+    # Improve validation of existing tfs_workfold
+        # Remove each matching line from $tfs_workfold
+        # Then strip out all non-letter characters
+        # Then count the lines remaining
+        # If there are more than 0 lines remaining
+        # Then there are extra work folder mappings in the workspace
 
-    # Fix jq query to accommodate the scenario where the XML to JSON conversion results in a single JSON object instead of an array, because there's only one changelist to sync
-        # It seems like $tfs_changeset_sequence is supposed to be an array of changset IDs? but when there's only 1 ID in the variable, it's not an array?
+    # Add progress and summary stats
+        # Progress stats, per changeset
+            # Download sizes, times, and speed (mbps)
+            # Processing times and speed (MB/s)
+            # Number of changed files
+        # Summary stats, per script execution
+            # Changesets processed
+            # Total download sizes, times, and speed (mbps)
+            # Total processing times and speed (MB/s)
+            # Total number of changed files
+            # Total execution time
+            # Repo size
+            # Cleanup and exit function prints summary stats
 
-        # Might need to refactor load_tfs_changeset_sequence_old_to_new to return an array even if there's only 1 element
-
-        # while read -r current_changeset_id
-        # done <<<"$tfs_changeset_sequence"
-
-        # 2024-01-23;02:33:44;tfs-to-git;v0.2;INFO;Downloading changeset [ from TFS [0 remaining]:
-        # Author:  marc.leblanc@sourcegraph.com -> Marc LeBlanc <marc.leblanc@sourcegraph.com>
-        # Date:    2024-01-08T22:15:39.547+0000
-        # Message: Created team project folder $/marc-test-tfvc via the Team Project Creation Wizard
-
-        # An argument error occurred: Option 'version' requires a version spec as its value: The changeset version specification was not recognized as a number.
-        # Team Explorer Everywhere Command Line Client (version 14.139.0.202310311513)
-
-        #  get command:
-
-
-    # Missing authors
-        # Add all missing authors to the authors file, in a format that's easy for the admin to fill in
-
-    # Update readme
-        # Provide thorough dependency installation instructions
-        # Fix bug with target path not being able to be a cousin directory, or document it in the README and usage text
-
-    # Exit 3 if there are more changes left after the batch size is exhausted
-        # So the calling script knows to call it again sooner than having to wait for the next interval
-
-    # Add stats for download times and storage size, number of changed files
-        # Cleanup and exit function prints stats for changesets processed, total changed files, total MB downloaded, repo size, time spent downloading, execution time
-
-    # Sort out local git config
-        # Reconfigure committer user.name/email based on author mapping
+    # Extract project name from $/{project}/ repo source path
+        # Use it in the URL
 
     # Test connectivity to endpoints before beginning
         # If Git remote is provided, test its connection during input validation (ie. git can access credentials, start a session, network connectivity, etc.)
@@ -55,66 +42,51 @@
         # Go may make it easier to get integrated into the product, so then we get the added benefits of perms syncing, etc.
 
     # Branch mode
-        # Would take a bunch more time, so we'd need to validate that with the customer before spending that time on it
+        # Would take a bunch more time, so we'd need to validate that with customers before spending that time on it
         # Might name the git repo after the collection name
 
-
-
-    # How will the customer want to use this script?
-
+    # How will customers want to use this script?
         # This isn't like Git, where you could just provide an Org (collection), and it could query the API to get a list of all repos, and clone them
-            # Customer admins need to make decisions about which source paths they want to migrate
-                # Or, do they?
-                # I need to provide a sane default
-            # Can we assume a source path of $/ for all Collections, unless otherwise provided?
-                # This would result in all branches getting committed to the main branch of the git repo, just in different subdirectory trees
-                # There's no way to avoid this, without the customer providing a list of $/source/paths for their main and other branches
+            # Customers need to make decisions about which source paths they want to migrate
+            # Default source path of $/
+                # This results in all branches of all projects in the org getting committed to the main branch of the git repo, just in different subdirectory trees
+                # There's no way to avoid this, without the customer providing a list of $/project/source/paths for their main and other branches
 
         # Chances are the customer just wants to provide:
             # - A list of TFS / ADO servers
-                # - One or more access token per server
+                # - One or more access tokens per server
             # - A list of collections per server
                 # - Or is there an API to get a list of all collections on the server?
-            # - A list of source paths per collection
-                # - TFS only supports once TFVC repo per collection, but users may want to convert multiple branches, or subdirectory locations
+            # - A list of projects per collection
+                # - TFS only supports once TFVC repo per collection, so all projects in the collection are just top level folders in the same TFVC repo
+                # - Customers may want to convert a subset of projects / branches into a repo
             # - Branch mode
                 # - 1:1 repo and branch mapping
-                    # - Could be automated if there was a consistent way to know where in the file path is each branch
-                    # - Otherwise requires the user to provide a branch map of source paths for each main / branch
-            # - A git remote for each of these ^
+                    # - Requires the customer to provide a list of branch source paths for each main / branch
+            # - A git remote for each repo
                 # - I'd rather just provide
                     # - One Git server
                         # Either just one Git org, or one org per Collection
                         # Then have the script use the collection / source path as the repo name
-            # - Assume that either:
-                # A) git remote repos are 1:1 with TFVC collections (branch mode)
-                    # i.e. if they want to migrate 3 branches, this results in 3 branches inside of 1 git repo
-                    # This would require building support for branches
-                # B) git remote repos are 1:1 with TFVC branches
-                    # One TFVC branch per Git repo
-                    # i.e. they probably only want to migrate their main branch, or their TFVC branching strategy doesn't carry over into Git, so they are rethinking it in the migration process
-                    # i.e. if they want to migrate 3 branches, this results in 3 separate git repos
 
     # Git repo naming
-        # I think, by default, git init creates a repo named just with the current working directory
-        # The git remote determines the repo's name on their git server
-        # But, if we're just using src serve-git, then the repo name is actually the file path below the root directory of where src serve git is traversing from
-            # ex. if running src serve-git from /sourcegraph/tfs-to-git/.repos, and there are repos below this direcotry at orgs/repos, then the repo's name is org/repo, but there's no code host FQDN/org path to it, so the directory tree is key.
+        # src serve-git names the repo as the file path below the root directory of where src serve git is traversing from
+            # ex. if running src serve-git from /sourcegraph/tfs-to-git/.repos, and there are repos below this directory at orgs/repos, then the repo's name is org/repo, but there's no code host FQDN/org path for src serve-git, so add an extra directory level in the repo path mimic a code host FQDN in Sourcegraph
         # Assume we'll be running src serve-git from /sourcegraph/tfs-to-git/.repos
-        # repositoryPathPattern isn't used for src serve-git
+        # repositoryPathPattern isn't available for src serve-git
         # Should name the repo server/collection-source-path by default, especially if cloning $/ root
-            # For Branch Mode, the user will probably want the repo to be named after the collection, because the source paths are just branch names
-        # So in the end
+        # Therefore
             # Default repo names: collection-source-path
-            # Assume that we don't need to use the git remote in the file path
+            # Assume that we don't need to use a user-provied --git-remote in the file path
             # replace '/' with '-' for collection and $/source/path
             # File tree:
-            # ./repos/tfs_server/collection-source-path/
-                # .git (repo)
-                # .tfs-to-git/ (working files)
-
+                # ./repos/server/collection-source-path/
+                    # .git (repo)
+                    # .tfs-to-git/ (script files)
+                    # Working copy of the files
 
 # Declare global variables
+# declare -a is an array
 # declare -A is an associative array
 # declare -i is an integer variable
 # declare -r is a read-only variable
@@ -125,6 +97,7 @@ declare -i  continue_from_changeset
 declare -i  exit_status=0
 declare -A  external_dependencies_array
 declare     force_replace_git_target_directory=false
+declare     get_repo_size_arg=false
 declare     git_default_branch="main"
 declare     git_default_committer_email="tfs-to-git@sourcegraph.com"
 declare     git_default_committer_name="TFS-to-Git"
@@ -140,20 +113,23 @@ declare     log_level_config="INFO"
 declare     log_level_event="INFO"
 declare -Ar log_levels=([DEBUG]=0 [INFO]=1 [WARNING]=2 [ERROR]=3)
 declare -a  missing_authors
+declare     missing_authors_file
 declare     missing_dependencies
 declare -r  script_name="tfs-to-git"
 declare     log_file="./$script_name.log"
-declare -r  script_version="v0.2"
-declare     tfs_changeset_sequence
+declare -r  script_version="v0.1"
+declare     tfs_access_token_arg
+declare     tfs_changeset_id_array
 declare     tfs_collection
 declare -i  tfs_history_start_changeset=1
 declare     tfs_latest_changeset_json
 declare     tfs_latest_changeset_xml
-declare     tfs_access_token_arg
+declare     tfs_project
 declare     tfs_repo_history_file_json
 declare     tfs_repo_history_file_xml
 declare     tfs_server="https://dev.azure.com"
 declare     tfs_source_repo_path="$/"
+declare     tfs_source_repo_path_for_url
 declare     tfs_username_arg
 declare     tfs_workspace
 declare     validate_paths=false
@@ -165,16 +141,16 @@ declare -r  info_yellow_colour='\033[0;33m'
 declare -r  warning_orange_colour='\033[0;35m'
 declare -r  reset_colour='\033[0m'
 
-# Environment variables used because Git doesn't allow setting committer date by command line args
-# export GIT_AUTHOR_DATE="$current_changeset_date"
-# export GIT_COMMITTER_DATE=$GIT_AUTHOR_DATE
-
 
 function cleanup_and_exit() {
 
-    # Unset environment variables
-    unset GIT_COMMITTER_DATE
+    # Unset git environment variables
     unset GIT_AUTHOR_DATE
+    unset GIT_AUTHOR_EMAIL
+    unset GIT_AUTHOR_NAME
+    unset GIT_COMMITTER_DATE
+    unset GIT_COMMITTER_EMAIL
+    unset GIT_COMMITTER_NAME
 
     # Use whatever was last set as the exit status
     exit "$exit_status"
@@ -299,8 +275,6 @@ function print_usage_instructions_and_exit() {
     -d, --dependencies, --check-dependencies
         Check depdencies and outputs versions, then exits
 
-    -f, --git-push-force, --git-force-push
-
     -fp, --git-push-force,  --git-force-push
         Enables git push --force to overwrite the remote git repo if it already
         exists
@@ -329,6 +303,17 @@ function print_usage_instructions_and_exit() {
         If provided, the target Git repo will be pushed to this remote at the
         end of the script run
         Ex. https://github.com/YourOrgName/SuperApp
+
+    --repo-size
+        Force pull the latest revision, without intermediate changesets, and
+        output the size of the repo on disk
+        This will not commit the files to the git repo, but it also doesn't
+        clean them up, so they'll be committed on the next run of the script
+        If your repo was not previously at the latest revision, or latest -1,
+        this will break your git repo history, so you should re-run the script
+        with the -fr args after this finishes, to force replace the git repo
+        To avoid this, run this after your repo clone is up to date with
+        latest, or before you begin migrating history.
 
     -s, --source, --tfs-source-path
         Source location within TFS collection
@@ -433,6 +418,11 @@ function parse_and_validate_user_args() {
             shift
             shift
             ;;
+        --repo-size)
+            get_repo_size_arg=true
+            shift
+            shift
+            ;;
         -s | --source | --tfs-source-path)
             tfs_source_repo_path="$2"
             shift
@@ -497,6 +487,7 @@ function set_file_paths_after_parsing_user_args(){
     tfs_collection_for_path="${tfs_collection//\//-}"   # Replace all '/' with '-'
     # Source path
     tfs_source_repo_path_for_path="${tfs_source_repo_path//\$\/}"           # Remove all '$/'
+    tfs_source_repo_path_for_url="${tfs_source_repo_path//\$\/}"           # Remove all '$/'
     tfs_source_repo_path_for_path="${tfs_source_repo_path_for_path//\//-}"  # Replace all '/' with '-'
     # Assemble the git target directory path
     git_target_directory=$initial_pwd/$git_target_directory_root/$tfs_server_for_path/$tfs_collection_for_path
@@ -529,6 +520,12 @@ function set_file_paths_after_parsing_user_args(){
     tfs_repo_history_file_xml="$working_files_directory/repo-history.xml"
     tfs_latest_changeset_json="$working_files_directory/latest-changeset.json"
     tfs_latest_changeset_xml="$working_files_directory/latest-changeset.xml"
+
+    missing_authors_file="$initial_pwd/$tfs_server_for_path-$tfs_collection_for_path-missing-authors.json"
+
+    tfs_path_url="$tfs_server/$tfs_collection/$tfs_project/_versionControl?path=$/$tfs_project/$tfs_source_repo_path_for_url"
+    # https://dev.azure.com/marc-leblanc/test2/_versionControl?path=$/test2/README.md
+    # https://dev.azure.com/marc-leblanc/marc-test-tfvc/_versionControl?path=$/marc-test-tfvc/app/main/dev/README.md
 
     # If the user provided the --validate-paths flag
     if $validate_paths
@@ -701,7 +698,7 @@ function create_or_update_repo(){
         if ! git_remote_url=$(git config --get remote.origin.url)
         then
 
-            debug "Couldn't read git config --get remote.origin.url from the repo"
+            debug "Couldn't get git config --get remote.origin.url from the repo"
 
         fi
 
@@ -734,7 +731,7 @@ function get_latest_changeset_previously_committed() {
         last_commit_changeset=$(("${BASH_REMATCH[1]}"))
         continue_from_changeset=$((last_commit_changeset+1))
 
-        info "Found latest changeset $last_commit_changeset already committed. Continuing from changeset $continue_from_changeset"
+        info "Found existing repo at $git_target_directory, with last committed changeset $last_commit_changeset"
 
     fi
 
@@ -907,11 +904,12 @@ function create_migration_tfs_workspace() {
                 workspace_is_valid=false
 
             # else
-                # TODO: Remove each matching line from $tfs_workfold,
-                # Then strip out all non-letter characters
-                # Then count the lines remaining
-                # If there are more than 0 lines remaining,
-                # Then there are extra work folder mappings in the workspace
+                # Improve validation of existing tfs_workfold
+                    # Remove each matching line from $tfs_workfold
+                    # Then strip out all non-letter characters
+                    # Then count the lines remaining
+                    # If there are more than 0 lines remaining
+                    # Then there are extra work folder mappings in the workspace
 
             fi
 
@@ -965,6 +963,24 @@ function create_migration_tfs_workspace() {
 
 }
 
+function get_repo_size() {
+
+    info "Getting the repo size, this will tf get -force the latest revision, without intermediate changesets, but won't commit these files to teh git repo, so this will break your converted repo history the next time the script is run; you should run the script again with -fr to force replace the git repo after this finishes"
+
+    # Get the lastest version of all files in the workspace
+    if ! tf get . -recursive -noprompt -version:T -force
+    then
+        error "Error while getting the latest version of all files in the workspace to check repo size"
+    fi
+
+    # Output the repo size
+    info "Repo size: $(du -sch *)"
+
+    exit_status=0
+    cleanup_and_exit
+
+}
+
 
 function get_tfs_repo_history() {
 
@@ -986,6 +1002,7 @@ function get_tfs_repo_history() {
 
     # Check the latest changeset in the repo
     # Get it in XML
+    # This will always be a single object in the XML output
     if ! tf history \
         "$tfs_source_repo_path" \
         -workspace:"$tfs_workspace" \
@@ -999,37 +1016,52 @@ function get_tfs_repo_history() {
     fi
 
     # Convert it to JSON
-    if ! xml2json -t xml2json -o "$tfs_latest_changeset_json" "$tfs_latest_changeset_xml"
+    if ! xml2json -t xml2json --pretty --strip_text -o "$tfs_latest_changeset_json" "$tfs_latest_changeset_xml"
     then
         error "Unable to convert latest changeset to JSON. See file $tfs_latest_changeset_xml"
     fi
 
     # Read it from JSON
+    # Because this is always a single object in the XML output, it's also a single object in JSON, not a list of changeset objects
+    # So, just read the JSON as a single object
     if ! tfs_latest_changeset_id=$(jq -r '.history.changeset["@id"]' "$tfs_latest_changeset_json")
     then
         error "Unable to read tf history from $tfs_latest_changeset_json"
     fi
 
-    ## TODO: Take another look at this, I haven't seen it break yet, but the variable names seem crossed
+    info "Latest changeset on TFS server is $tfs_latest_changeset_id, $tfs_path_url"
+
     # If tfs_history_start_changeset -gt latest, then we're already caught up, exit 0
     if [[ "$tfs_history_start_changeset" -gt "$tfs_latest_changeset_id" ]]
     then
-        info "Latest changeset from TFS is $tfs_latest_changeset_id, and latest changeset in the Git repo is $last_commit_changeset. No more history to migrate, exiting."
+
+        info "No newer changesets to migrate, exiting"
+
         exit_status=0
         cleanup_and_exit
     fi
 
+    info "Batch size is $changelist_batch_size"
+
     # Set our tfs_history_end_changeset to the start + the batch size
     tfs_history_end_changeset=$((tfs_history_start_changeset + changelist_batch_size - 1))
 
-    # If $tfs_history_end_changeset -gt latest, then set tfs_history_end_changeset=latest
-    if [[ "$tfs_history_end_changeset" -gt "$tfs_latest_changeset_id" ]]
+    # If $tfs_history_end_changeset -ge latest, then set tfs_history_end_changeset=latest
+    if [[ "$tfs_history_end_changeset" -ge "$tfs_latest_changeset_id" ]]
     then
-        info "Latest changeset from TFS is $tfs_latest_changeset_id, migrating up to latest."
+
+        info "Migrating to latest"
         tfs_history_end_changeset=$tfs_latest_changeset_id
+
+    else
+
+        info "Migrating up to changeset $tfs_history_end_changeset in this batch"
+        # Set the exit status to 3, so that the calling script knows that more changesets remain to be migrated, and can call the script to run the next batch sooner than the next interval
+        exit_status=3
+
     fi
 
-    info "Getting history of $tfs_source_repo_path, from changeset $tfs_history_start_changeset to changeset $tfs_history_end_changeset; this may take a long time, depending on TFS changeset sizes"
+    info "Getting changeset history metadata for $tfs_source_repo_path, from changeset $tfs_history_start_changeset to changeset $tfs_history_end_changeset, this may take more time for larger batches"
 
     # Delete any existing history file from previous executions
     rm -f "$tfs_repo_history_file_xml"
@@ -1052,103 +1084,109 @@ function get_tfs_repo_history() {
 
 function convert_tfs_repo_history_file_from_xml_to_json() {
 
-    # Convert TF's XML file to JSON format to be much easier to work with
-    if ! xml2json -t xml2json -o "$tfs_repo_history_file_json" "$tfs_repo_history_file_xml"
+    # Add an extra <changeset></changeset> object to the tfs_repo_history_file_xml file, so that xml2json will always convert it to a JSON array rather than a single object
+    sed -i 's/^<\/history>$/<changeset><\/changeset><\/history>/' $tfs_repo_history_file_xml
+
+    # Convert tf's XML file to JSON format to be much easier to work with
+    if ! xml2json -t xml2json --strip_text -o "$tfs_repo_history_file_json" "$tfs_repo_history_file_xml"
     then
         error "Unable to convert history to JSON. See file $tfs_repo_history_file_xml"
     fi
 
+    # Remove the null line created by xml2json for our sed line insert
+    sed -i 's/}, null]}/}]}/' $tfs_repo_history_file_json
+
     # Count and print the number of changesets in the TFS repo's history
-    count_of_changesets=$(grep -c "<changeset id=" $tfs_repo_history_file_xml)
-    #count_of_changesets_jq=$(jq '.history.changeset | length' "$tfs_repo_history_file_json")
-    info "Changesets in this batch: $count_of_changesets"
+    count_of_changesets=$(jq '.history.changeset | length' "$tfs_repo_history_file_json")
+    info "Changesets received in this batch: $count_of_changesets"
 
-}
-
-
-function load_tfs_changeset_sequence_old_to_new() {
-
-    # Try first to read the JSON as an array, assuming there's more than one changeset in this batch
-    if ! tfs_changeset_sequence=$(jq -r '[.history.changeset[]["@id"]] | reverse[]' "$tfs_repo_history_file_json" 2> /dev/null)
+    # tf provides the XML in reverse chronological order, so we need to reverse it into chronological order for Git
+    # Store this in the array that the big commit conversion loop goes through
+    if ! mapfile -t tfs_changeset_id_array < <(jq -r '[.history.changeset[]["@id"]] | reverse[]' "$tfs_repo_history_file_json" 2> /dev/null)
     then
 
-        debug "Unable to load the changeset sequence in reverse. See file $tfs_repo_history_file_json"
-
-        # If that fails, then try to read it again as a single item
-        if ! tfs_changeset_sequence=$(jq -r '[.history.changeset["@id"]]' "$tfs_repo_history_file_json" 2> /dev/null)
-        then
-
-            error "Unable to load the changeset sequence of length 1. See file $tfs_repo_history_file_json"
-
-        fi
+        error "Unable to load the changeset sequence in reverse. See file $tfs_repo_history_file_json"
 
     fi
 
 }
 
 
-function map_authors() {
+function map_tfs_owners_to_git_authors() {
 
-    # Validate that the name mapping JSON file provided in the user args exists
+    # Verify the name mapping JSON file provided in the user args exists
     if [ ! -f "$author_name_mapping_file" ]
     then
         error "Owner mapping file $author_name_mapping_file does not exist, and is required"
     fi
 
-    # Try first to read tfs_repo_history_file_json as an array, assuming there's more than one changeset in this batch
-    if ! authors_email_addresses_to_map_from_tfs_history=$(jq -r '[.history.changeset[]["@owner"]] | unique[]' "$tfs_repo_history_file_json" 2> /dev/null)
+    # Get a the list of unique changeset owners from the history file
+    mapfile -t changeset_owner_usernames_from_tfs_history < <(jq -r '[.history.changeset[]["@owner"]] | unique[]' "$tfs_repo_history_file_json" 2> /dev/null)
+    if [ -z "${changeset_owner_usernames_from_tfs_history[*]}" ]
     then
 
-        debug "Unable to get a list of unique authors' email addresses from $tfs_repo_history_file_json"
+        debug "changeset_owner_usernames_from_tfs_history: "
+        debug "${changeset_owner_usernames_from_tfs_history[@]}"
 
-        # If that fails, then try to read it again as a single item
-        if ! authors_email_addresses_to_map_from_tfs_history=$(jq -r '[.history.changeset["@owner"]] | unique[]' "$tfs_repo_history_file_json" 2> /dev/null)
-        then
-
-            error "Unable to get the one author's email address from $tfs_repo_history_file_json"
-
-        fi
+        error "Unable to get a list of unique authors' usernames from $tfs_repo_history_file_json"
 
     fi
 
-    # Iterate through the list of authors from the TFS repo history file
-    while IFS="" read -r author_to_map_from_tfs_history
+    debug "changeset_owner_usernames_from_tfs_history: "
+    debug "${changeset_owner_usernames_from_tfs_history[@]}"
+
+    # Iterate through the list of owners from the TFS repo history file
+    for changeset_owner_to_map_from_tfs_history in "${changeset_owner_usernames_from_tfs_history[@]}"
     do
 
         # Use jq to search the $author_name_mapping_file for the author's email address from the TFS repo history file
-        author=$(jq -r '.["'"${author_to_map_from_tfs_history//\\/\\\\}"'"]' "$author_name_mapping_file")
+        author=$(jq -r '.["'"${changeset_owner_to_map_from_tfs_history//\\/\\\\}"'"]' "$author_name_mapping_file")
 
-        # If jq didn't find this author from the TFS history in the $author_name_mapping_file
-        if [ -z "$author" ]
+        # If jq didn't find the changeset owner from the $tfs_repo_history_file_json in the $author_name_mapping_file
+        if [ -z "$author" ] || [ "$author" == "null" ]
         then
 
+            debug "Author missing from mapping file: $changeset_owner_to_map_from_tfs_history"
+
             # Add the author to the list of missing authors
-            missing_authors+=("$author")
+            missing_authors+=("$changeset_owner_to_map_from_tfs_history")
 
         else
 
+            debug "Mapping author: $author"
+
             # Store the author in the associative array
-            author_mapping_array["${author_to_map_from_tfs_history}"]="${author}"
+            author_mapping_array["${changeset_owner_to_map_from_tfs_history}"]="${author}"
 
         fi
 
-    # Read the next line from the authors_email_addresses_to_map_from_tfs_history list, from the TFS history
-    done < <(tr ' ' '\n' <<<"$authors_email_addresses_to_map_from_tfs_history")
+    # Read the next line from the changeset_owner_usernames_from_tfs_history list
+    # This line is the problem that splits usernames with spaces in them
+    done
 
     # If the author name mapping file is missing authors, list them out for the user to add
     if [[ -n "${missing_authors[*]}" ]]
     then
 
-        # TODO: Write all authors from the TFS repo history not found in the author_name_mapping_file
-        # back out to the author_name_mapping_file, with friendly formatting,
-        # before exiting, so that the user can check the file and fill in all missing authors in one execution,
-        # instead of having to re-run this script multiple times to find all the missing authors
-        error "Author name mapping file $author_name_mapping_file is missing the below authors; please add them. \n ${missing_authors[*]}"
+        # Clear or create the missing authors file
+        echo "{" > "$missing_authors_file"
+
+        # Add the missing authors on their own line
+        for missing_author in "${missing_authors[@]}"
+        do
+
+            echo "    \"$missing_author\": \"Firstname Lastname <email@domain.com>\"," >> "$missing_authors_file"
+
+        done
+
+        echo "}" >> "$missing_authors_file"
+
+        error "The author mapping file at $author_name_mapping_file is missing changeset owners from the TFS history file; these authors have been written to $missing_authors_file for you"
 
     fi
 
     # Output the name mapping to the user for visual verification
-    if [[ $log_level_config == "debug" ]]
+    if [[ $log_level_config == "DEBUG" ]]
     then
         debug "Authors found in TFS repo history and read from $author_name_mapping_file:"
         for author_iterator in "${!author_mapping_array[@]}"
@@ -1158,10 +1196,17 @@ function map_authors() {
         echo ""
     fi
 
+    if [[ -z "${author_mapping_array[*]}" ]]
+    then
+
+        error "Could not parse any authors from $author_name_mapping_file"
+
+    fi
+
 }
 
 
-function migrate_tfs_changesets_to_git_commits() {
+function convert_tfs_changesets_to_git_commits() {
 
     # If continue_from_changeset is set, then this isn't our first commit
     if [[ -n $continue_from_changeset ]]
@@ -1173,47 +1218,37 @@ function migrate_tfs_changesets_to_git_commits() {
 
     changesets_remaining=$count_of_changesets
 
-    debug "tfs_changeset_sequence: $tfs_changeset_sequence"
+    debug "tfs_changeset_id_array:"
+    debug "${tfs_changeset_id_array[@]}"
 
-    # Iterate through $tfs_changeset_sequence
-    while read -r current_changeset_id
+    # Iterate through $tfs_changeset_id_array
+    for current_changeset_id in "${tfs_changeset_id_array[@]}"
     do
 
         # Read changeset information from the JSON history file
-        # If there's only one changeset in the sequence, xml2json creates the schema differently
-        if [[ $count_of_changesets -eq 1 ]]
+        if ! current_changeset_info=$(jq -c '.history.changeset[] | select (.["@id"] == "'"$current_changeset_id"'") | [.["@owner"], .["@committer"], .["@date"], .comment]' "$tfs_repo_history_file_json")
         then
 
-            # Extract fields from the changeset info
-            current_changeset_id=$(jq -r '.history.changeset."@id"' "$tfs_repo_history_file_json")
-            current_changeset_date=$(jq -r '.history.changeset."@date"' "$tfs_repo_history_file_json")
-            current_changeset_author=$(jq -r '.history.changeset."@owner"' "$tfs_repo_history_file_json")
-            current_changeset_message=$(jq -r '.history.changeset.comment."#text"' "$tfs_repo_history_file_json")
-
-            # Clear the sequence to avoid iterating on formatting characters
-            tfs_changeset_sequence=""
-
-        else
-
-            if ! current_changeset_info=$(jq -c '.history.changeset[] | select (.["@id"] == "'"$current_changeset_id"'") | [.comment["#text"], .["@owner"], .["@date"]]' "$tfs_repo_history_file_json")
-            then
-
-                error "Unable to get current_changeset_info from an array"
-
-            fi
-
-            # Extract fields from the changeset info
-            current_changeset_message=$(echo "$current_changeset_info" | jq -r '.[0]')
-            current_changeset_author=$( echo "$current_changeset_info" | jq -r '.[1]')
-            current_changeset_date=$(   echo "$current_changeset_info" | jq -r '.[2]')
+            error "Unable to get current_changeset_info from changeset $current_changeset_id in $tfs_repo_history_file_json"
 
         fi
 
+        # Extract fields from the changeset info
+        current_changeset_owner=$(      echo "$current_changeset_info" | jq -r '.[0]')
+        # Could support separate authors and committers, but would have to double this through the author mapping
+        # current_changeset_committer=$(  echo "$current_changeset_info" | jq -r '.[1]')
+        current_changeset_date=$(       echo "$current_changeset_info" | jq -r '.[2]')
+        current_changeset_message=$(    echo "$current_changeset_info" | jq -r '.[3]')
+
+        # Get the author's name and email address in Git format
+        git_author="${author_mapping_array["$current_changeset_owner"]}"
+
+        debug "git_author: $git_author"
+
         # Validate (again) that the author is mapped
-        # If the above jq commands fail, then this line will likely fail with a "bad array subscript" error
-        if [ -z "${author_mapping_array["$current_changeset_author"]}" ]
+        if [ -z "$git_author" ]
         then
-            error "Source author $current_changeset_author is not mapped"
+            error "TFS changeset $current_changeset_id owner \n$current_changeset_owner\n is not mapped in $author_name_mapping_file"
         fi
 
         # Decrement the number of changesets remaining
@@ -1221,9 +1256,10 @@ function migrate_tfs_changesets_to_git_commits() {
 
         # Print commit details to the user to show progress
         info "Downloading changeset $current_changeset_id from TFS [$changesets_remaining remaining]:"
-        info "Author:  $current_changeset_author -> ${author_mapping_array["$current_changeset_author"]}"
+        info "Author:  $current_changeset_owner -> $git_author"
         info "Date:    $current_changeset_date"
         info "Message: $current_changeset_message"
+        info "tf output: "
 
         # Sync the files in the changeset from TFS
         if $first_commit
@@ -1250,9 +1286,25 @@ function migrate_tfs_changesets_to_git_commits() {
 
         fi
 
-        # Using environment variables for the dates, because Git doesn't allow setting GIT_COMMITTER_DATE by CLI arg
+        # Extract the author name from the git_author string
+        git_author_name="$(echo "$git_author" | cut -d '<' -f1)"
+        # Extract the author email from the git_author string
+        git_author_email="$(echo "$git_author" | cut -d '<' -f2)"
+        # Remove the trailing > from the email
+        git_author_email="${git_author_email//>/}"
+
+        # Using environment variables for the dates, because Git doesn't allow setting half of these by CLI arg
         export GIT_AUTHOR_DATE="$current_changeset_date"
+        export GIT_AUTHOR_EMAIL="$git_author_email"
+        export GIT_AUTHOR_NAME="$git_author_name"
         export GIT_COMMITTER_DATE="$current_changeset_date"
+        export GIT_COMMITTER_EMAIL="$git_author_email"
+        export GIT_COMMITTER_NAME="$git_author_name"
+
+
+        # Print the new working directory to show where this command is getting run from
+        info "Committing changeset $current_changeset_id to git repo"
+        info "git output:"
 
         # Stage files to commit
         if ! git add .
@@ -1260,35 +1312,24 @@ function migrate_tfs_changesets_to_git_commits() {
             error "Error while staging files. See git output"
         fi
 
-        # Print the new working directory to show where this command is getting run from
-        info "Committing changeset $current_changeset_id to git repo"
-
         # Commit files
         # nothing to commit, working tree clean # Also an error that need to consider
         if ! git commit \
             --all \
             --allow-empty \
-            --author="${author_mapping_array["$current_changeset_author"]}" \
             --message="[ADO-$current_changeset_id] $current_changeset_message"
         then
             error "Error while committing changes. See git output"
         fi
 
-        echo ""
-
-        if [[ $count_of_changesets -eq 1 ]]
-        then
-            break
-        fi
-
-    done <<<"$tfs_changeset_sequence"
+    done
 
 }
 
 
 function git_garbage_collection() {
 
-    info "Optimizing repository size by performing git reflog expire and git gc"
+    info "Running git garbage collection"
 
     git reflog expire --all --expire=now
     git gc --prune=now --aggressive
@@ -1302,7 +1343,7 @@ function git_push() {
     if [[ -z "$git_remote_url" ]]
     then
 
-        debug "No git remote configured, skipping push."
+        debug "No git remote configured, skipping git push"
         return
     fi
 
@@ -1332,26 +1373,27 @@ function git_push() {
 
 function main() {
 
+    # Set file paths and variable values
     set_file_paths_before_parsing_user_args
-
     parse_and_validate_user_args "$@"
-
     set_file_paths_after_parsing_user_args
 
-    # Check that all needed dependencies are installed and in $PATH
+    # Verify that all needed dependencies are installed and in $PATH
     check_dependencies
 
     # If this is a new repo, create it, otherwise grab the latest changeset ID number to continue from
     tfs_login
+    create_migration_tfs_workspace
     create_or_update_repo
 
+    # If the user provided the --repo-size arg, get the size of the repo, then exit
+    if $get_repo_size_arg; then get_repo_size ;fi
+
     # Run the migration process
-    create_migration_tfs_workspace
     get_tfs_repo_history
     convert_tfs_repo_history_file_from_xml_to_json
-    load_tfs_changeset_sequence_old_to_new
-    map_authors
-    migrate_tfs_changesets_to_git_commits
+    map_tfs_owners_to_git_authors
+    convert_tfs_changesets_to_git_commits
     git_garbage_collection
     git_push
 
