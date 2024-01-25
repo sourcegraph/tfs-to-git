@@ -613,7 +613,7 @@ EOF
 }
 
 
-function create_or_update_repo(){
+function create_or_update_repo_then_cd(){
 
     # If the user provided the --force-replace arg, then try and delete the git_target_directory
     if $force_replace_git_target_directory
@@ -1422,8 +1422,8 @@ function main() {
 
     # If this is a new repo, create it, otherwise grab the latest changeset ID number to continue from
     tfs_login
+    create_or_update_repo_then_cd
     create_migration_tfs_workspace
-    create_or_update_repo
 
     # If the user provided the --repo-size arg, get the size of the repo, then exit
     if $get_repo_size_arg; then get_repo_size ;fi
