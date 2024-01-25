@@ -865,10 +865,7 @@ function create_migration_tfs_workspace() {
     # Workspace:  $tfs_workspace
     # Collection: $tfs_server/$tfs_collection
     #  $tfs_source_repo_path: $git_target_directory
-    tfs_workfold=$(tf workfold \
-                        -collection:"$tfs_server"/"$tfs_collection" \
-                        -workspace:"$tfs_workspace" 2> /dev/null
-                    )
+    tfs_workfold=$(tf workfold -workspace:"$tfs_workspace" 2> /dev/null)
 
     debug "tfs_workfold received from $tfs_workspace workspace:\n$tfs_workfold"
 
@@ -968,7 +965,6 @@ function create_migration_tfs_workspace() {
     # Map the target directory to the workspace
     debug "Mapping TFS source $tfs_source_repo_path to Git target directory $git_target_directory"
     if ! tf workfold \
-            -collection:"$tfs_server/$tfs_collection" \
             -workspace:"$tfs_workspace" \
             -map \
             "$tfs_source_repo_path" .
@@ -980,9 +976,7 @@ function create_migration_tfs_workspace() {
     if [[ $log_level_config == "DEBUG" ]]
     then
         debug "Outputting the folder mapping to visually verify them"
-        tf workfold \
-            -collection:"$tfs_server/$tfs_collection" \
-            -workspace:"$tfs_workspace"
+        tf workfold -workspace:"$tfs_workspace"
     fi
 
 }
