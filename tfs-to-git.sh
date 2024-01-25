@@ -880,6 +880,11 @@ function create_migration_tfs_workspace() {
         # The workspace doesn't exist, skip the rest of checking, and create it
         info "$tfs_workspace is missing, creating it. \n $tfs_workfold"
         workspace_exists=false
+    elif [[ "$tfs_workfold" == *"Team Explorer Everywhere Command Line Client"* ]]
+    then
+
+        error "Invalid tf workfold command:\n$tfs_workspace "
+
     else
         debug "Workspace already $tfs_workspace exists"
         workspace_exists=true
