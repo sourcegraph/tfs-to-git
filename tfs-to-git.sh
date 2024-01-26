@@ -1503,7 +1503,7 @@ function git_login_and_push() {
 
     # If we have a TFS access token, and the Git remote includes the same TFS server as the source, then try to use the same creds to push the Git repo
     # Lowest precedence, will get over written if there's a higher precedence token
-    if [[ -n "$tfs_access_token" ]] && [[ "$git_remote_url" == "*$tfs_server*" ]]
+    if [[ -n "$tfs_access_token" ]] && [[ "$git_remote_url" == "*$tfs_server_for_path*" ]]
     then
 
         # Use the TFS credentials to push to the Git remote
@@ -1535,11 +1535,6 @@ function git_login_and_push() {
     debug "{git_credential_handler_array[*]} values:"
     debug "${git_credential_handler_array[*]}"
 
-
-
-    declare -A my_array
-    my_array["key"]="value"
-    echo ${my_array["key"]}
 
     # Try the credential handlers in order of precedence
     for git_auth_method in "${git_auth_method_precedence[@]}"
