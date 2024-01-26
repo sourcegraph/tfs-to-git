@@ -464,7 +464,8 @@ function parse_and_validate_user_args() {
             shift
             ;;
         -l | --log-level)
-            if [[ -n "$2" ]] || [[ "$2" == "-"* ]]
+            # If there's no next parameter, or if it begins with -
+            if [[ -z "$2" ]] || [[ "$2" == "-*" ]]
             then
                 log_level_config="DEBUG"
                 shift
