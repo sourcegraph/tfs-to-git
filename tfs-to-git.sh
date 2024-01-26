@@ -1001,7 +1001,7 @@ function get_repo_size() {
     fi
 
     # Output the repo size
-    info "Repo size: $(du -sch *)"
+    info "Repo size: $(du -sch )"
 
     exit_status=0
     cleanup_and_exit
