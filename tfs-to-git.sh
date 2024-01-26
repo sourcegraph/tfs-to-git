@@ -1475,14 +1475,14 @@ function git_login_and_push() {
     # Tell git to fail instead of prompt for password
     export GIT_TERMINAL_PROMPT=0
 
-    # Test if the git remote is already authenticated
-    if git push >/dev/null 2>&1
-    then
+    # # Test if the git remote is already authenticated
+    # if git push >/dev/null 2>&1
+    # then
 
-        debug "Git remote $git_remote_url is already authenticated"
-        git_credential_handler_array["already-authenticated"]=" "
+    #     debug "Git remote $git_remote_url is already authenticated"
+    #     git_credential_handler_array["already-authenticated"]=" "
 
-    fi
+    # fi
 
     if [[ -n "$git_access_token_arg" ]]
     then
