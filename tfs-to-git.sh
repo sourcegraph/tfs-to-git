@@ -1543,6 +1543,8 @@ function git_login_and_push() {
         git_access_token="${git_access_token_array[$git_auth_method]}"
         # git_access_token_b64="$(printf ":%s" "$git_access_token" | base64)"
 
+        debug "git_access_token: $git_access_token"
+
         git config http.extraheader "AUTHORIZATION: bearer $git_access_token"
 
         # Get the credential handler
