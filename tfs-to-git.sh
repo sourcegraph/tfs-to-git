@@ -1472,6 +1472,9 @@ function git_login_and_push() {
     # Associative array to store git credential handler strings, with keys of the git authentication methods
     declare -A git_credential_handler_array
 
+    # Tell git to fail instead of prompt for password
+    export GIT_TERMINAL_PROMPT=0
+
     # Test if the git remote is already authenticated
     if git push >/dev/null 2>&1
     then
@@ -1520,13 +1523,17 @@ function git_login_and_push() {
         git_credential_handler="${git_credential_handler_array[$git_auth_method]}"
 
         # Break out of this loop on the first auth method that works
-        if git $git_credential_handler push $git_push_command_args
+        if ! git $git_credential_handler push $git_push_command_args
         then
-            info "Pushed to git remote origin using $git_auth_method method"
-            break
-        else
+
             warning "Pushing to git remote origin using $git_auth_method method failed"
             warning "Git push command run: git $git_credential_handler push $git_push_command_args"
+
+        else
+
+            info "Pushed to git remote origin using $git_auth_method method"
+            break
+
         fi
 
     done
