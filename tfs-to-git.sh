@@ -1520,11 +1520,11 @@ function git_login_and_push() {
 
     debug "{#git_auth_method_precedence[@]} length: ${#git_auth_method_precedence[@]}"
 
-    debug "{!git_auth_method_precedence[@]} keys:"
-    debug "${!git_auth_method_precedence[@]}"
+    debug "{!git_auth_method_precedence[*]} keys:"
+    debug "${!git_auth_method_precedence[*]}"
 
-    debug "{git_auth_method_precedence[@]} values:"
-    debug "${git_auth_method_precedence[@]}"
+    debug "{git_auth_method_precedence[*]} values:"
+    debug "${git_auth_method_precedence[*]}"
 
     # Try the credential handlers in order of precedence
     for git_auth_method in "${git_auth_method_precedence[@]}"
