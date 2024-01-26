@@ -1485,7 +1485,7 @@ function git_login_and_push() {
     then
 
         debug "--git-access-token arg provided"
-        git_credential_handler_array["--git-access-token"]="$git_access_token_arg "
+        git_credential_handler_array["--git-access-token"]="$git_access_token_arg"
 
     fi
 
@@ -1493,7 +1493,7 @@ function git_login_and_push() {
     then
 
         debug "Found GIT_ACCESS_TOKEN, may try to use it"
-        git_credential_handler_array["GIT_ACCESS_TOKEN"]="$GIT_ACCESS_TOKEN "
+        git_credential_handler_array["GIT_ACCESS_TOKEN"]="$GIT_ACCESS_TOKEN"
 
     fi
 
@@ -1508,7 +1508,7 @@ function git_login_and_push() {
         # Using the credential handler doc from Azure
         # https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=azure-devops&tabs=Linux#use-a-pat
         git_access_token="$(printf ":%s" "$tfs_access_token" | base64)"
-        git_credential_handler_array["tfs_access_token"]="-c http.extraHeader='Authorization: Basic ${git_access_token} "
+        git_credential_handler_array["tfs_access_token"]="-c http.extraHeader='Authorization: Basic ${git_access_token}'"
 
     fi
 
@@ -1520,7 +1520,7 @@ function git_login_and_push() {
         git_credential_handler="${git_credential_handler_array[$git_auth_method]}"
 
         # Break out of this loop on the first auth method that works
-        if git "$git_credential_handler"push "$git_push_command_args"
+        if git "$git_credential_handler" push "$git_push_command_args"
         then
             info "Pushed to git remote origin using $git_auth_method method"
             break
