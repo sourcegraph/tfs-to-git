@@ -1462,7 +1462,7 @@ function git_login_and_push() {
     fi
 
     # Declare and define an array of git authentication methods, in order of their precedence
-    git_auth_method_precedence+=(
+    git_auth_method_precedence=(
         "already authenticated"
         "--git-access-token"
         "GIT_ACCESS_TOKEN"
@@ -1502,7 +1502,7 @@ function git_login_and_push() {
 
     # If we have a TFS access token, and the Git remote includes the same TFS server as the source, then try to use the same creds to push the Git repo
     # Lowest precedence, will get over written if there's a higher precedence token
-    if [[ -n "$tfs_access_token" ]] && [[ "$git_remote_url" == *"$tfs_server"* ]]
+    if [[ -n "$tfs_access_token" ]] && [[ "$git_remote_url" == "*$tfs_server*" ]]
     then
 
         # Use the TFS credentials to push to the Git remote
@@ -1515,6 +1515,9 @@ function git_login_and_push() {
 
     fi
 
+    # Stop git from prompting for password
+    export GIT_TERMINAL_PROMPT=0
+
     # Try the credential handlers in order of precedence
     for git_auth_method in "${git_auth_method_precedence[@]}"
     do
@@ -1525,7 +1528,7 @@ function git_login_and_push() {
         debug "git_credential_handler: $git_credential_handler"
 
         # Break out of this loop on the first auth method that works
-        if ! GIT_ASKPASS=true git $git_credential_handler push $git_push_command_args
+        if ! git "$git_credential_handler" push "$git_push_command_args"
         then
 
             warning "Pushing to git remote origin using $git_auth_method method failed"
