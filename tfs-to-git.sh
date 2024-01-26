@@ -742,34 +742,6 @@ function create_or_update_repo_then_cd(){
 
     fi
 
-    # # If the user provided a git remote in the script args, then configure it
-    # if [ -n "$git_remote_url" ]
-    # then
-
-    #     # Remove the existing origin from the git repo metadata, if it exists
-    #     git remote rm origin >/dev/null 2>&1
-
-    #     # Add the provided remote
-    #     if ! git remote add origin "$git_remote_url"
-    #     then
-
-
-    #         # If adding the provided remote fails
-    #         error "Configuring git remote origin failed" 1> /dev/null
-
-    #     fi
-
-    # else
-    #     # If the user did not provide a git remote in the script args, check if one is already configured
-    #     if ! git_remote_url=$(git config --get remote.origin.url)
-    #     then
-
-    #         debug "Couldn't get git config --get remote.origin.url from the repo"
-
-    #     fi
-
-    # fi
-
 }
 
 
@@ -1449,134 +1421,192 @@ function git_login_and_push() {
         debug "No git remote configured, skipping git push"
         return
 
-    fi
+    else
 
-    # Declare and define an array of git authentication methods, in order of their precedence
-    git_auth_method_precedence=(
-        "already-authenticated"
-        "--git-access-token"
-        "GIT_ACCESS_TOKEN"
-        "tfs_access_token"
-    )
-
-    # Associative array to store git credential handler strings, with keys of the git authentication methods
-    declare -A git_access_token_array
-
-    # Tell git to fail instead of prompt for password
-    export GIT_TERMINAL_PROMPT=0
-
-    # Test if the git remote is already authenticated
-    if git push >/dev/null 2>&1
-    then
-
-        debug "Git remote $git_remote_url is already authenticated"
-        git_access_token_array["already-authenticated"]=" "
+        info "Pushing to git remote"
+        git push --all --force $git_remote_url
 
     fi
 
-    if [[ -n "$git_access_token_arg" ]]
-    then
+    # # Declare and define an array of git authentication methods, in order of their precedence
+    # git_auth_method_precedence=(
+    #     "already-authenticated"
+    #     "--git-access-token"
+    #     "GIT_ACCESS_TOKEN"
+    #     "tfs_access_token"
+    # )
 
-        debug "--git-access-token arg provided"
-        git_access_token_array["--git-access-token"]="$git_access_token_arg"
+    # # Associative array to store git credential handler strings, with keys of the git authentication methods
+    # declare -A git_access_token_array
 
-    fi
+    # # Tell git to fail instead of prompt for password
+    # export GIT_TERMINAL_PROMPT=0
 
-    if [[ -n "$GIT_ACCESS_TOKEN" ]]
-    then
+    # # Test if the git remote is already authenticated
+    # if git push >/dev/null 2>&1
+    # then
 
-        debug "Found GIT_ACCESS_TOKEN, may try to use it"
-        git_access_token_array["GIT_ACCESS_TOKEN"]="$GIT_ACCESS_TOKEN"
+    #     debug "Git remote $git_remote_url is already authenticated"
+    #     git_access_token_array["already-authenticated"]=" "
 
-    fi
+    # fi
 
-    # If we have a TFS access token, and the Git remote includes the same TFS server as the source, then try to use the same creds to push the Git repo
-    # Lowest precedence, will get over written if there's a higher precedence token
-    if [[ -n "$tfs_access_token" ]]
-    then
+    # if [[ -n "$git_access_token_arg" ]]
+    # then
 
-        # Use the TFS credentials to push to the Git remote
-        debug "Git remote URL includes TFS server, may try to use the TFS access token"
+    #     debug "--git-access-token arg provided"
+    #     git_access_token_array["--git-access-token"]="$git_access_token_arg"
 
+    # fi
 
-    fi
+    # if [[ -n "$GIT_ACCESS_TOKEN" ]]
+    # then
 
-    # Stop git from prompting for password
-    export GIT_TERMINAL_PROMPT=0
+    #     debug "Found GIT_ACCESS_TOKEN, may try to use it"
+    #     git_access_token_array["GIT_ACCESS_TOKEN"]="$GIT_ACCESS_TOKEN"
 
-    debug "{#git_auth_method_precedence[@]} length: ${#git_auth_method_precedence[@]}"
+    # fi
 
-    debug "{!git_auth_method_precedence[*]} keys:"
-    debug "${!git_auth_method_precedence[*]}"
+    # # If we have a TFS access token, and the Git remote includes the same TFS server as the source, then try to use the same creds to push the Git repo
+    # # Lowest precedence, will get over written if there's a higher precedence token
+    # if [[ -n "$tfs_access_token" ]]
+    # then
 
-    debug "{git_auth_method_precedence[*]} values:"
-    debug "${git_auth_method_precedence[*]}"
-
-    debug "{#git_access_token_array[@]} length: ${#git_access_token_array[@]}"
-
-    debug "{!git_access_token_array[*]} keys:"
-    debug "${!git_access_token_array[*]}"
-
-    debug "{git_access_token_array[*]} values:"
-    debug "${git_access_token_array[*]}"
-
-
-
-    # Default push command args
-    git_push_command_args=" -u origin --all "
-
-    # If the user provided the --git-force-push arg
-    if $git_force_push
-    then
-
-        # Add the force flag to the git command args
-        info "git push --force set"
-        git_push_command_args+=" --force"
-
-    fi
+    #     # Use the TFS credentials to push to the Git remote
+    #     debug "Git remote URL includes TFS server, may try to use the TFS access token"
 
 
+    # fi
 
-    # Try the credential handlers in order of precedence
-    for git_auth_method in "${git_auth_method_precedence[@]}"
-    do
+    # # Stop git from prompting for password
+    # export GIT_TERMINAL_PROMPT=0
 
-        debug "git_auth_method: $git_auth_method"
+    # debug "{#git_auth_method_precedence[@]} length: ${#git_auth_method_precedence[@]}"
 
-        # Using the credential handler doc from Azure
-        # https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=azure-devops&tabs=Linux#use-a-pat
-        git_access_token="${git_access_token_array[$git_auth_method]}"
-        # git_access_token_b64="$(printf ":%s" "$git_access_token" | base64)"
+    # debug "{!git_auth_method_precedence[*]} keys:"
+    # debug "${!git_auth_method_precedence[*]}"
 
-        debug "git_access_token: $git_access_token"
+    # debug "{git_auth_method_precedence[*]} values:"
+    # debug "${git_auth_method_precedence[*]}"
 
-        # Else set remote
-        #git remote add origin https://<PAT>@<company_machineName>.visualstudio.com:/<project name>/_git/<repo_name>
-        git remote add origin https://$git_access_token@marc-leblanc@dev.azure.com/marc-leblanc/tfvc-project-1/_git/t2g-tfvc-project-1
-        git push -u origin --all
+    # debug "{#git_access_token_array[@]} length: ${#git_access_token_array[@]}"
+
+    # debug "{!git_access_token_array[*]} keys:"
+    # debug "${!git_access_token_array[*]}"
+
+    # debug "{git_access_token_array[*]} values:"
+    # debug "${git_access_token_array[*]}"
 
 
-        # Get the credential handler
-        #git_credential_handler="-c http.extraHeader='Authorization: Basic ${git_access_token_b64}'"
-        #debug "git_credential_handler: $git_credential_handler"
 
-        # Break out of this loop on the first auth method that works
-        #if ! git "$git_credential_handler" push "$git_push_command_args"
-        if ! git push "$git_push_command_args"
-        then
+    # # Default push command args
+    # git_push_command_args=" -u origin --all "
 
-            warning "Pushing to git remote origin using $git_auth_method method failed"
-            #warning "Git push command run: git $git_credential_handler push $git_push_command_args"
-            warning "Git push command run: git push $git_push_command_args"
+    # # If the user provided the --git-force-push arg
+    # if $git_force_push
+    # then
 
-        else
+    #     # Add the force flag to the git command args
+    #     info "git push --force set"
+    #     git_push_command_args+=" --force"
 
-            info "Pushed to git remote origin using $git_auth_method method"
-            break
+    # fi
 
-        fi
 
-    done
+    # # # If the user provided a git remote in the script args, then configure it
+    # # if [ -n "$git_remote_url" ]
+    # # then
+
+    # #     # Remove the existing origin from the git repo metadata, if it exists
+    # #     git remote rm origin >/dev/null 2>&1
+
+    # #     # Add the provided remote
+    # #     if ! git remote add origin "$git_remote_url"
+    # #     then
+
+
+    # #         # If adding the provided remote fails
+    # #         error "Configuring git remote origin failed" 1> /dev/null
+
+    # #     fi
+
+    # # else
+    # #     # If the user did not provide a git remote in the script args, check if one is already configured
+    # #     if ! git_remote_url=$(git config --get remote.origin.url)
+    # #     then
+
+    # #         debug "Couldn't get git config --get remote.origin.url from the repo"
+
+    # #     fi
+
+    # # fi
+
+
+    # # Try the credential handlers in order of precedence
+    # for git_auth_method in "${git_auth_method_precedence[@]}"
+    # do
+
+    #     debug "git_auth_method: $git_auth_method"
+
+    #     # Using the credential handler doc from Azure
+    #     # https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=azure-devops&tabs=Linux#use-a-pat
+    #     git_access_token="${git_access_token_array[$git_auth_method]}"
+    #     # git_access_token_b64="$(printf ":%s" "$git_access_token" | base64)"
+
+    #     debug "git_access_token: $git_access_token"
+
+    #     # Else set remote
+    #     #git remote add origin https://<PAT>@<company_machineName>.visualstudio.com:/<project name>/_git/<repo_name>
+
+    #     git push https://pat:username@dev.azure.com/marc-leblanc/tfvc-project-1/_git/t2g-tfvc-project-1
+    #     # https://
+    #     # pat
+    #     # :
+    #     # username
+    #     # @
+    #     # dev.azure.com
+    #     # /
+    #     # marc-leblanc/tfvc-project-1/_git/t2g-tfvc-project-1
+
+
+    #     # scheme://
+    #     # --git-access-token
+    #     # :
+    #     # --git-username
+    #     # @
+    #     # dev.azure.com/marc-leblanc/tfvc-project-1/_git/t2g-tfvc-project-1
+
+    #     # take git remote, access token, and username from user input
+    #     # https://dev.azure.com/marc-leblanc/tfvc-project-1/_git/t2g-tfvc-project-1
+
+    #     # Split URL scheme from hostname
+    #     # https://      dev.azure.com/marc-leblanc/tfvc-project-1/_git/t2g-tfvc-project-1
+
+    #     # Form string
+    #     # pat:username@
+
+    #     # Get the credential handler
+    #     #git_credential_handler="-c http.extraHeader='Authorization: Basic ${git_access_token_b64}'"
+    #     #debug "git_credential_handler: $git_credential_handler"
+
+    #     # Break out of this loop on the first auth method that works
+    #     #if ! git "$git_credential_handler" push "$git_push_command_args"
+    #     #if ! git push "$git_push_command_args"
+    #     if ! git push https://$git_access_token:$git_access_token@dev.azure.com/marc-leblanc/tfvc-
+    #     then
+
+    #         warning "Pushing to git remote origin using $git_auth_method method failed"
+    #         #warning "Git push command run: git $git_credential_handler push $git_push_command_args"
+    #         warning "Git push command run: git push $git_push_command_args"
+
+    #     else
+
+    #         info "Pushed to git remote origin using $git_auth_method method"
+    #         break
+
+    #     fi
+
+    # done
 
 }
 
