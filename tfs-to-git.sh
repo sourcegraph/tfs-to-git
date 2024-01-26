@@ -464,13 +464,13 @@ function parse_and_validate_user_args() {
             shift
             ;;
         -l | --log-level)
-            if [[ "$2" != "-*" ]]
+            if [[ -n "$2" ]] || [[ "$2" == "-*" ]]
             then
-                log_level_config="$2"
-                shift
+                log_level_config="DEBUG"
                 shift
             else
-                log_level_config="DEBUG"
+                log_level_config="$2"
+                shift
                 shift
             fi
             ;;
