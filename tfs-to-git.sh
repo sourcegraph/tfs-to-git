@@ -742,32 +742,33 @@ function create_or_update_repo_then_cd(){
 
     fi
 
-    # If the user provided a git remote in the script args, then configure it
-    if [ -n "$git_remote_url" ]
-    then
+    # # If the user provided a git remote in the script args, then configure it
+    # if [ -n "$git_remote_url" ]
+    # then
 
-        # Remove the existing origin from the git repo metadata, if it exists
-        git remote rm origin >/dev/null 2>&1
+    #     # Remove the existing origin from the git repo metadata, if it exists
+    #     git remote rm origin >/dev/null 2>&1
 
-        # Add the provided remote
-        if ! git remote add origin "$git_remote_url"
-        then
+    #     # Add the provided remote
+    #     if ! git remote add origin "$git_remote_url"
+    #     then
 
-            # If adding the provided remote fails
-            error "Configuring git remote origin failed" 1> /dev/null
 
-        fi
+    #         # If adding the provided remote fails
+    #         error "Configuring git remote origin failed" 1> /dev/null
 
-    else
-        # If the user did not provide a git remote in the script args, check if one is already configured
-        if ! git_remote_url=$(git config --get remote.origin.url)
-        then
+    #     fi
 
-            debug "Couldn't get git config --get remote.origin.url from the repo"
+    # else
+    #     # If the user did not provide a git remote in the script args, check if one is already configured
+    #     if ! git_remote_url=$(git config --get remote.origin.url)
+    #     then
 
-        fi
+    #         debug "Couldn't get git config --get remote.origin.url from the repo"
 
-    fi
+    #     fi
+
+    # fi
 
 }
 
@@ -1447,18 +1448,6 @@ function git_login_and_push() {
 
         debug "No git remote configured, skipping git push"
         return
-    fi
-
-    # Default push command args
-    git_push_command_args=" -u origin --all "
-
-    # If the user provided the --git-force-push arg
-    if $git_force_push
-    then
-
-        # Add the force flag to the git command args
-        info "git push --force set"
-        git_push_command_args+=" --force"
 
     fi
 
@@ -1532,6 +1521,22 @@ function git_login_and_push() {
     debug "${git_access_token_array[*]}"
 
 
+
+    # Default push command args
+    git_push_command_args=" -u origin --all "
+
+    # If the user provided the --git-force-push arg
+    if $git_force_push
+    then
+
+        # Add the force flag to the git command args
+        info "git push --force set"
+        git_push_command_args+=" --force"
+
+    fi
+
+
+
     # Try the credential handlers in order of precedence
     for git_auth_method in "${git_auth_method_precedence[@]}"
     do
@@ -1545,7 +1550,11 @@ function git_login_and_push() {
 
         debug "git_access_token: $git_access_token"
 
-        git config http.extraheader "AUTHORIZATION: bearer $git_access_token"
+        # Else set remote
+        #git remote add origin https://<PAT>@<company_machineName>.visualstudio.com:/<project name>/_git/<repo_name>
+        git remote add origin https://$git_access_token@marc-leblanc@dev.azure.com/marc-leblanc/tfvc-project-1/_git/t2g-tfvc-project-1
+        git push -u origin --all
+
 
         # Get the credential handler
         #git_credential_handler="-c http.extraHeader='Authorization: Basic ${git_access_token_b64}'"
