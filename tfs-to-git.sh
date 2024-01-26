@@ -151,7 +151,7 @@ declare     initial_pwd
 declare -i  last_commit_changeset
 declare     log_level_config="INFO"
 declare     log_level_event="INFO"
-declare -Ar log_levels=( [DEBUG]=0 [d]=0 [db]=0 [debug]=0 [INFO]=1 [i]=1 [info]=1 [WARNING]=2 [w]=2 [warn]=2 [ERROR]=3 [e]=3 [e]=3)
+declare -Ar log_levels=( [DEBUG]=0 [INFO]=1 [WARNING]=2 [ERROR]=3)
 declare -a  missing_authors
 declare     missing_authors_file
 declare     missing_dependencies
