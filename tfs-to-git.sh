@@ -1541,18 +1541,22 @@ function git_login_and_push() {
         # Using the credential handler doc from Azure
         # https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=azure-devops&tabs=Linux#use-a-pat
         git_access_token="${git_access_token_array[$git_auth_method]}"
-        git_access_token_b64="$(printf ":%s" "$git_access_token" | base64)"
+        # git_access_token_b64="$(printf ":%s" "$git_access_token" | base64)"
+
+        git config http.extraheader "AUTHORIZATION: bearer $git_access_token"
 
         # Get the credential handler
-        git_credential_handler="-c http.extraHeader='Authorization: Basic ${git_access_token_b64}'"
-        debug "git_credential_handler: $git_credential_handler"
+        #git_credential_handler="-c http.extraHeader='Authorization: Basic ${git_access_token_b64}'"
+        #debug "git_credential_handler: $git_credential_handler"
 
         # Break out of this loop on the first auth method that works
-        if ! git "$git_credential_handler" push "$git_push_command_args"
+        #if ! git "$git_credential_handler" push "$git_push_command_args"
+        if ! git push "$git_push_command_args"
         then
 
             warning "Pushing to git remote origin using $git_auth_method method failed"
-            warning "Git push command run: git $git_credential_handler push $git_push_command_args"
+            #warning "Git push command run: git $git_credential_handler push $git_push_command_args"
+            warning "Git push command run: git push $git_push_command_args"
 
         else
 
