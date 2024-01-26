@@ -865,10 +865,7 @@ function create_migration_tfs_workspace() {
     # Workspace:  $tfs_workspace
     # Collection: $tfs_server/$tfs_collection
     #  $tfs_source_repo_path: $git_target_directory
-    tfs_workfold=$("2> /dev/null")
-    info "pwd: $(pwd)"
-    info "tf workfold -workspace:$tfs_workspace"
-    tf workfold -workspace:"$tfs_workspace"
+    tfs_workfold=$(tf workfold -workspace:"$tfs_workspace" 2> /dev/null)
 
     debug "tfs_workfold received from $tfs_workspace workspace:\n$tfs_workfold"
 
@@ -877,9 +874,11 @@ function create_migration_tfs_workspace() {
     # Then the workspace doesn't exist, create it
     if [[ "$tfs_workfold" == *"could not be found"* ]]
     then
+
         # The workspace doesn't exist, skip the rest of checking, and create it
         info "$tfs_workspace is missing, creating it. \n $tfs_workfold"
         workspace_exists=false
+
     elif [[ "$tfs_workfold" == *"Team Explorer Everywhere Command Line Client"* ]]
     then
 
@@ -897,7 +896,7 @@ function create_migration_tfs_workspace() {
         # Assemble an array of the lines the workfold must contain to be valid
         tfs_workfold_parameters=(
             "$tfs_workspace"
-            "$tfs_server/$tfs_collection"
+            "$tfs_server/$tfs_collection/"
             "$tfs_source_repo_path: $git_target_directory"
         )
 
