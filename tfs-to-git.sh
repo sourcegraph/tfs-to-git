@@ -1520,7 +1520,7 @@ function git_login_and_push() {
         git_credential_handler="${git_credential_handler_array[$git_auth_method]}"
 
         # Break out of this loop on the first auth method that works
-        if git "$git_credential_handler" push "$git_push_command_args"
+        if git $git_credential_handler push $git_push_command_args
         then
             info "Pushed to git remote origin using $git_auth_method method"
             break
