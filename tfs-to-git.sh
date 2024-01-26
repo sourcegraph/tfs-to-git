@@ -1450,7 +1450,7 @@ function git_login_and_push() {
     fi
 
     # Default push command args
-    git_push_command_args="-u origin --all"
+    git_push_command_args=" -u origin --all "
 
     # If the user provided the --git-force-push arg
     if $git_force_push
