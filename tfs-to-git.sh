@@ -2,6 +2,45 @@
 
 # TODO:
 
+    # Test pushing Git repo back to Azure DevOps
+
+    # Handle cases of deleting / renaming files
+        # Check if there are any other actions that could happen in a changeset
+        # https://learn.microsoft.com/en-us/rest/api/azure/devops/tfvc/changesets/get-changeset-changes?view=azure-devops-rest-7.1&tabs=HTTP#versioncontrolchangetype
+        # Read the items from the changeset metadata?
+        # Test them
+        # Ensure they are supported
+
+        # VersionControlChangeType
+        # add
+        # all
+        # branch
+        # delete
+        # edit
+        # encoding
+        # lock
+        # merge
+        # none
+        # property
+        # rename
+        # rollback
+        # sourceRename
+        # targetRename
+        # undelete
+
+        # Rename the log file to start with a fresh file
+        # Run a full execution start to finish
+        # Log level info
+        # Capture the tf and git output
+        # Compare for when the change set metadata says delete
+        # Check if the git command removes the file
+            # I'm sure it doesn't because the tf get command doesn't delete files
+        # Organize the 16 actions into CRUD
+        # Verify if each of the actions is taken
+        # Create CRUD routines in the conversion function, map the metadata action to the routines: delete, update, create
+        # Parse the actions items in the metadata, set flags for which CRUD routines need to happen, and execute the delete before the tf get
+        # Verify the state matches?
+
     # Improve validation of existing tfs_workfold
         # Remove each matching line from $tfs_workfold
         # Then strip out all non-letter characters
@@ -98,6 +137,7 @@ declare -i  exit_status=0
 declare -A  external_dependencies_array
 declare     force_replace_git_target_directory=false
 declare     get_repo_size_arg=false
+declare     git_access_token_arg
 declare     git_default_branch="main"
 declare     git_default_committer_email="tfs-to-git@sourcegraph.com"
 declare     git_default_committer_name="TFS-to-Git"
@@ -111,16 +151,18 @@ declare     initial_pwd
 declare -i  last_commit_changeset
 declare     log_level_config="INFO"
 declare     log_level_event="INFO"
-declare -Ar log_levels=([DEBUG]=0 [INFO]=1 [WARNING]=2 [ERROR]=3)
+declare -Ar log_levels=( [DEBUG]=0 [d]=0 [db]=0 [debug]=0 [INFO]=1 [i]=1 [info]=1 [WARNING]=2 [w]=2 [warn]=2 [ERROR]=3 [e]=3 [e]=3)
 declare -a  missing_authors
 declare     missing_authors_file
 declare     missing_dependencies
 declare -r  script_name="tfs-to-git"
 declare     log_file="./$script_name.log"
 declare -r  script_version="v0.1"
+declare     tfs_access_token
 declare     tfs_access_token_arg
 declare     tfs_changeset_id_array
 declare     tfs_collection
+declare     tfs_creds_provided
 declare -i  tfs_history_start_changeset=1
 declare     tfs_latest_changeset_json
 declare     tfs_latest_changeset_xml
@@ -128,8 +170,9 @@ declare     tfs_project
 declare     tfs_repo_history_file_json
 declare     tfs_repo_history_file_xml
 declare     tfs_server="https://dev.azure.com"
-declare     tfs_source_repo_path="$/"
 declare     tfs_source_repo_path_for_url
+declare     tfs_source_repo_path="$/"
+declare     tfs_username
 declare     tfs_username_arg
 declare     tfs_workspace
 declare     validate_paths=false
@@ -275,12 +318,22 @@ function print_usage_instructions_and_exit() {
     -d, --dependencies, --check-dependencies
         Check depdencies and outputs versions, then exits
 
-    -fp, --git-push-force,  --git-force-push
+    -fp, --git-push-force, --git-force-push
         Enables git push --force to overwrite the remote git repo if it already
         exists
 
-    -fr | --force-replace
+    -fr, --force-replace
         Deletes and recreates the local clone of the repo
+
+    -g, -gpat, --git-access-token
+        Access token of an account on your git remote server to push the git
+        repo at the end of the script
+
+        The git access token can also be stored in environment variable
+        GIT_ACCESS_TOKEN
+        If provided as both environment variable and script arg, the command
+        arg will take precedence, but the environment variable will still tried
+        if the token provided in the script arg fails
 
     -h, --help
         Print this help message
@@ -329,7 +382,7 @@ function print_usage_instructions_and_exit() {
         download repo content.
 
         TFS access token can also be stored in environment variable TFS_ACCESS_TOKEN
-        If provided as both environment variable and command arg, the command
+        If provided as both environment variable and script arg, the command
         arg will take precedence
 
     --tfs-user, --tfs-username
@@ -337,7 +390,7 @@ function print_usage_instructions_and_exit() {
         download repo content
 
         TFS username can also be stored in environment variable TFS_USERNAME
-        If provided as both environment variable and command arg, the command
+        If provided as both environment variable and script arg, the command
         arg will take precedence
 
     -v, --version
@@ -391,6 +444,11 @@ function parse_and_validate_user_args() {
             force_replace_git_target_directory=true
             shift
             ;;
+        -g | -gpat | --git-access-token )
+            git_access_token_arg="$2"
+            shift
+            shift
+            ;;
         -h | --help)
             print_usage_instructions_and_exit
             ;;
@@ -405,9 +463,15 @@ function parse_and_validate_user_args() {
             shift
             ;;
         -l | --log-level)
-            log_level_config="$2"
-            shift
-            shift
+            if [ -n "$2" ]
+            then
+                log_level_config="$2"
+                shift
+                shift
+            else
+                log_level_config="DEBUG"
+                shift
+            fi
             ;;
         -p | --validate-paths)
             validate_paths=true
@@ -420,7 +484,6 @@ function parse_and_validate_user_args() {
             ;;
         --repo-size)
             get_repo_size_arg=true
-            shift
             shift
             ;;
         -s | --source | --tfs-source-path)
@@ -773,10 +836,6 @@ function create_and_stage_git_ignore_file() {
 
 function tfs_login() {
 
-    declare tfs_username
-    declare tfs_access_token
-    declare creds_provided
-
     # Export the TF_AUTO_SAVE_CREDENTIALS variable, so that the tf command will save credentials in memory for the rest of the script execution
     export TF_AUTO_SAVE_CREDENTIALS=1
 
@@ -790,19 +849,19 @@ function tfs_login() {
         # Read ENV variables
         debug "TFS_USERNAME is set"
         tfs_username="$TFS_USERNAME"
-        creds_provided+="TFS_USERNAME "
+        tfs_creds_provided+="TFS_USERNAME "
 
     fi
 
-    # If command args are set
+    # If script args are set
     if [[ -n "$tfs_username_arg" ]]
     then
 
-        # Read command args
+        # Read script args
         # Overwrite ENV variables if both are set
         debug "--tfs-username is set"
         tfs_username="$tfs_username_arg"
-        creds_provided+="--tfs-username "
+        tfs_creds_provided+="--tfs-username "
 
     fi
 
@@ -813,19 +872,19 @@ function tfs_login() {
         # Read ENV variables
         debug "TFS_ACCESS_TOKEN is set"
         tfs_access_token="$TFS_ACCESS_TOKEN"
-        creds_provided+="TFS_ACCESS_TOKEN "
+        tfs_creds_provided+="TFS_ACCESS_TOKEN "
 
     fi
 
-    # If command args are set
+    # If script args are set
     if [[ -n "$tfs_access_token_arg" ]]
     then
 
-        # Read command args
+        # Read script args
         # Overwrite ENV variables if both are set
         debug "--tfs-access-token is set"
         tfs_access_token="$tfs_access_token_arg"
-        creds_provided+="--tfs-access-token"
+        tfs_creds_provided+="--tfs-access-token"
 
     fi
 
@@ -846,7 +905,7 @@ function tfs_login() {
     elif [[ -n "$tfs_username" ]] || [[ -n "$tfs_access_token" ]]
     then
 
-        warning "Missing TFS username or password. Credentials provided: $creds_provided"
+        warning "Missing TFS username or password. Credentials provided: $tfs_creds_provided"
 
     fi
 
@@ -985,7 +1044,7 @@ function create_migration_tfs_workspace() {
 
 function get_repo_size() {
 
-    info "Getting the repo size, this will tf get -force the latest revision, without intermediate changesets, but won't commit these files to teh git repo, so this will break your converted repo history the next time the script is run; you should run the script again with -fr to force replace the git repo after this finishes"
+    info "Getting the repo size, this will tf get -force the latest revision, without intermediate changesets, but won't commit these files to the git repo, so this will break your converted repo history the next time the script is run; you should run the script again with -fr to force replace the git repo after this finishes"
 
     # Get the lastest version of all files in the workspace
     if ! tf get . \
@@ -1287,6 +1346,12 @@ function convert_tfs_changesets_to_git_commits() {
         info "Message: $current_changeset_message"
         info "tf output: "
 
+
+        ## Delete
+        # For all items matching .history.changeset[].item[].@change-type = delete
+        # Get the list of items
+        # Delete them
+
         # Sync the files in the changeset from TFS
         if $first_commit
         then
@@ -1371,7 +1436,7 @@ function git_garbage_collection() {
 }
 
 
-function git_push() {
+function git_login_and_push() {
 
     # If no git remote was provided, then skip pushing
     if [[ -z "$git_remote_url" ]]
@@ -1381,26 +1446,87 @@ function git_push() {
         return
     fi
 
-    if [ $git_force_push ]
+    # Default push command args
+    git_push_command_args="-u origin --all"
+
+    # If the user provided the --git-force-push arg
+    if $git_force_push
     then
 
-        info "Force pushing to git remote origin"
-
-        if ! git push -u origin --all --force
-        then
-            error "Error while force pushing to origin. See git output"
-        fi
-
-    else
-
-        info "Pushing to git remote origin"
-
-        if ! git push -u origin --all
-        then
-            error "Error while pushing to origin. See git output"
-        fi
+        # Add the force flag to the git command args
+        info "git push --force set"
+        git_push_command_args+=" --force"
 
     fi
+
+    # Declare and define an array of git authentication methods, in order of their precedence
+    git_auth_method_precedence+=(
+        "already authenticated"
+        "--git-access-token"
+        "GIT_ACCESS_TOKEN"
+        "tfs_access_token"
+    )
+
+    # Associative array to store git credential handler strings, with keys of the git authentication methods
+    declare -A git_credential_handler_array
+
+    # Test if the git remote is already authenticated
+    if git push >/dev/null 2>&1
+    then
+
+        debug "Git remote $git_remote_url is already authenticated"
+        git_credential_handler_array["already authenticated"]=" "
+
+    fi
+
+    if [[ -n "$git_access_token_arg" ]]
+    then
+
+        debug "--git-access-token arg provided"
+        git_credential_handler_array["--git-access-token"]="$git_access_token_arg"
+
+    fi
+
+    if [[ -n "$GIT_ACCESS_TOKEN" ]]
+    then
+
+        debug "Found GIT_ACCESS_TOKEN, may try to use it"
+        git_credential_handler_array["GIT_ACCESS_TOKEN"]="$GIT_ACCESS_TOKEN"
+
+    fi
+
+    # If we have a TFS access token, and the Git remote includes the same TFS server as the source, then try to use the same creds to push the Git repo
+    # Lowest precedence, will get over written if there's a higher precedence token
+    if [[ -n "$tfs_access_token" ]] && [[ "$git_remote_url" == *"$tfs_server"* ]]
+    then
+
+        # Use the TFS credentials to push to the Git remote
+        debug "Git remote URL includes TFS server, may try to use the TFS access token"
+
+        # Using the credential handler doc from Azure
+        # https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=azure-devops&tabs=Linux#use-a-pat
+        git_access_token="$(printf ":%s" "$tfs_access_token" | base64)"
+        git_credential_handler_array["tfs_access_token"]="-c http.extraHeader='Authorization: Basic ${git_access_token}"
+
+    fi
+
+    # Try the credential handlers in order of precedence
+    for git_auth_method in "${git_auth_method_precedence[@]}"
+    do
+
+        # Get the credential handler
+        git_credential_handler="${git_credential_handler_array[$git_auth_method]}"
+
+        # Break out of this loop on the first auth method that works
+        if git "$git_credential_handler" push "$git_push_command_args"
+        then
+            info "Pushed to git remote origin using $git_auth_method method"
+            break
+        else
+            warning "Pushing to git remote origin using $git_auth_method method failed"
+        fi
+
+    done
 
 }
 
@@ -1420,7 +1546,7 @@ function main() {
     create_or_update_repo_then_cd
     create_migration_tfs_workspace
 
-    # If the user provided the --repo-size arg, get the size of the repo, then exit
+    # If the user provided the --repo-size arg, get the size of the repo, then we need to run all the above functions first, then this, then exit
     if $get_repo_size_arg; then get_repo_size ;fi
 
     # Run the migration process
@@ -1429,7 +1555,7 @@ function main() {
     map_tfs_owners_to_git_authors
     convert_tfs_changesets_to_git_commits
     git_garbage_collection
-    git_push
+    git_login_and_push
 
     # Cleanup
     exit_status=0
