@@ -990,8 +990,6 @@ function get_repo_size() {
 
     # Get the lastest version of all files in the workspace
     if ! tf get . \
-            -collection:"$tfs_server/$tfs_collection" \
-            -workspace:"$tfs_workspace" \
             -version:T \
             -force \
             -recursive \
@@ -1001,7 +999,7 @@ function get_repo_size() {
     fi
 
     # Output the repo size
-    info "Repo size: $(du -sch )"
+    info "Repo size: $(du -sch ./*)"
 
     exit_status=0
     cleanup_and_exit
@@ -1296,8 +1294,6 @@ function convert_tfs_changesets_to_git_commits() {
 
             # On first commit, force the tf get command
             if ! tf get . \
-                -collection:"$tfs_server/$tfs_collection" \
-                -workspace:"$tfs_workspace" \
                 -version:"C$current_changeset_id" \
                 -force \
                 -recursive \
@@ -1316,8 +1312,6 @@ function convert_tfs_changesets_to_git_commits() {
 
             # On subsequent commits, don't force the tf get command
             if ! tf get . \
-                -collection:"$tfs_server/$tfs_collection" \
-                -workspace:"$tfs_workspace" \
                 -version:"C$current_changeset_id" \
                 -recursive \
                 -noprompt
