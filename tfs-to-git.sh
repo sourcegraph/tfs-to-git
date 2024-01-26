@@ -1526,6 +1526,14 @@ function git_login_and_push() {
     debug "{git_auth_method_precedence[*]} values:"
     debug "${git_auth_method_precedence[*]}"
 
+    debug "{#git_credential_handler_array[@]} length: ${#git_credential_handler_array[@]}"
+
+    debug "{!git_credential_handler_array[*]} keys:"
+    debug "${!git_credential_handler_array[*]}"
+
+    debug "{git_credential_handler_array[*]} values:"
+    debug "${git_credential_handler_array[*]}"
+
     # Try the credential handlers in order of precedence
     for git_auth_method in "${git_auth_method_precedence[@]}"
     do
