@@ -1463,7 +1463,7 @@ function git_login_and_push() {
 
     # Declare and define an array of git authentication methods, in order of their precedence
     git_auth_method_precedence=(
-        "already authenticated"
+        "already-authenticated"
         "--git-access-token"
         "GIT_ACCESS_TOKEN"
         "tfs_access_token"
