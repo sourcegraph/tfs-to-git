@@ -155,6 +155,7 @@ declare -Ar log_levels=( [DEBUG]=0 [d]=0 [db]=0 [debug]=0 [INFO]=1 [i]=1 [info]=
 declare -a  missing_authors
 declare     missing_authors_file
 declare     missing_dependencies
+declare     newer_changesets_to_migrate=true
 declare -r  script_name="tfs-to-git"
 declare     log_file="./$script_name.log"
 declare -r  script_version="v0.1"
@@ -1119,10 +1120,11 @@ function get_tfs_repo_history() {
     if [[ "$tfs_history_start_changeset" -gt "$tfs_latest_changeset_id" ]]
     then
 
-        info "No newer changesets to migrate, exiting"
+        info "No newer changesets to migrate"
+        newer_changesets_to_migrate=false
 
         exit_status=0
-        cleanup_and_exit
+        return
     fi
 
     info "Batch size is $changelist_batch_size"
@@ -1483,7 +1485,7 @@ function git_login_and_push() {
     then
 
         debug "--git-access-token arg provided"
-        git_credential_handler_array["--git-access-token"]="$git_access_token_arg"
+        git_credential_handler_array["--git-access-token"]="$git_access_token_arg "
 
     fi
 
@@ -1491,7 +1493,7 @@ function git_login_and_push() {
     then
 
         debug "Found GIT_ACCESS_TOKEN, may try to use it"
-        git_credential_handler_array["GIT_ACCESS_TOKEN"]="$GIT_ACCESS_TOKEN"
+        git_credential_handler_array["GIT_ACCESS_TOKEN"]="$GIT_ACCESS_TOKEN "
 
     fi
 
@@ -1506,7 +1508,7 @@ function git_login_and_push() {
         # Using the credential handler doc from Azure
         # https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=azure-devops&tabs=Linux#use-a-pat
         git_access_token="$(printf ":%s" "$tfs_access_token" | base64)"
-        git_credential_handler_array["tfs_access_token"]="-c http.extraHeader='Authorization: Basic ${git_access_token}"
+        git_credential_handler_array["tfs_access_token"]="-c http.extraHeader='Authorization: Basic ${git_access_token} "
 
     fi
 
@@ -1518,7 +1520,7 @@ function git_login_and_push() {
         git_credential_handler="${git_credential_handler_array[$git_auth_method]}"
 
         # Break out of this loop on the first auth method that works
-        if git "$git_credential_handler" push "$git_push_command_args"
+        if git "$git_credential_handler"push "$git_push_command_args"
         then
             info "Pushed to git remote origin using $git_auth_method method"
             break
@@ -1552,9 +1554,14 @@ function main() {
 
     # Run the migration process
     get_tfs_repo_history
-    convert_tfs_repo_history_file_from_xml_to_json
-    map_tfs_owners_to_git_authors
-    convert_tfs_changesets_to_git_commits
+
+    if $newer_changesets_to_migrate
+    then
+        convert_tfs_repo_history_file_from_xml_to_json
+        map_tfs_owners_to_git_authors
+        convert_tfs_changesets_to_git_commits
+    fi
+
     git_garbage_collection
     git_login_and_push
 
