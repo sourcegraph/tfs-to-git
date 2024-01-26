@@ -865,7 +865,10 @@ function create_migration_tfs_workspace() {
     # Workspace:  $tfs_workspace
     # Collection: $tfs_server/$tfs_collection
     #  $tfs_source_repo_path: $git_target_directory
-    tfs_workfold=$(tf workfold -workspace:"$tfs_workspace" 2> /dev/null)
+    tfs_workfold=$("2> /dev/null")
+    info "pwd: $(pwd)"
+    info "tf workfold -workspace:$tfs_workspace"
+    tf workfold -workspace:"$tfs_workspace"
 
     debug "tfs_workfold received from $tfs_workspace workspace:\n$tfs_workfold"
 
