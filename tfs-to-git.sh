@@ -1472,15 +1472,15 @@ function git_login_and_push() {
     # Associative array to store git credential handler strings, with keys of the git authentication methods
     declare -A git_credential_handler_array
 
-    # # Tell git to fail instead of prompt for password
-    # export GIT_TERMINAL_PROMPT=0
+    # Tell git to fail instead of prompt for password
+    export GIT_TERMINAL_PROMPT=0
 
     # Test if the git remote is already authenticated
     if git push >/dev/null 2>&1
     then
 
         debug "Git remote $git_remote_url is already authenticated"
-        git_credential_handler_array["already authenticated"]=""
+        git_credential_handler_array["already-authenticated"]=" "
 
     fi
 
@@ -1518,7 +1518,7 @@ function git_login_and_push() {
     # Stop git from prompting for password
     export GIT_TERMINAL_PROMPT=0
 
-    debut "{#git_auth_method_precedence[@]} length: ${#git_auth_method_precedence[@]}"
+    debug "{#git_auth_method_precedence[@]} length: ${#git_auth_method_precedence[@]}"
 
     debug "{!git_auth_method_precedence[@]} keys:"
     debug "${!git_auth_method_precedence[@]}"
@@ -1535,17 +1535,26 @@ function git_login_and_push() {
 
         debug "git_credential_handler: $git_credential_handler"
 
-        # Break out of this loop on the first auth method that works
-        if ! git "$git_credential_handler" push "$git_push_command_args"
+        if [ -n "$git_credential_handler" ]
         then
 
-            warning "Pushing to git remote origin using $git_auth_method method failed"
-            warning "Git push command run: git $git_credential_handler push $git_push_command_args"
+            # Break out of this loop on the first auth method that works
+            if ! git "$git_credential_handler" push "$git_push_command_args"
+            then
+
+                warning "Pushing to git remote origin using $git_auth_method method failed"
+                warning "Git push command run: git $git_credential_handler push $git_push_command_args"
+
+            else
+
+                info "Pushed to git remote origin using $git_auth_method method"
+                break
+
+            fi
 
         else
 
-            info "Pushed to git remote origin using $git_auth_method method"
-            break
+            debug "git_auth_method $git_auth_method has an empty credential handler"
 
         fi
 
