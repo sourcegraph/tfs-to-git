@@ -1518,6 +1518,8 @@ function git_login_and_push() {
     # Stop git from prompting for password
     export GIT_TERMINAL_PROMPT=0
 
+    debut "{#git_auth_method_precedence[@]} length: ${#git_auth_method_precedence[@]}"
+
     debug "{!git_auth_method_precedence[@]} keys:"
     debug "${!git_auth_method_precedence[@]}"
 
