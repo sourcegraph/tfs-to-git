@@ -1467,10 +1467,17 @@ function git_login_and_push() {
         "--git-access-token"
         "GIT_ACCESS_TOKEN"
         "tfs_access_token"
+        "test"
     )
 
     # Associative array to store git credential handler strings, with keys of the git authentication methods
     declare -A git_credential_handler_array
+
+    git_credential_handler_array["test"]="test"
+
+    # declare -A my_array
+    # my_array["key"]="value"
+    # echo ${my_array["key"]}
 
     # Tell git to fail instead of prompt for password
     export GIT_TERMINAL_PROMPT=0
@@ -1480,7 +1487,7 @@ function git_login_and_push() {
     then
 
         debug "Git remote $git_remote_url is already authenticated"
-        git_credential_handler_array[already-authenticated]=" "
+        git_credential_handler_array["already-authenticated"]="value"
 
     fi
 
@@ -1534,12 +1541,20 @@ function git_login_and_push() {
     debug "{git_credential_handler_array[*]} values:"
     debug "${git_credential_handler_array[*]}"
 
+
+
+    declare -A my_array
+    my_array["key"]="value"
+    echo ${my_array["key"]}
+
     # Try the credential handlers in order of precedence
     for git_auth_method in "${git_auth_method_precedence[@]}"
     do
 
+        debug "git_auth_method: $git_auth_method"
+
         # Get the credential handler
-        git_credential_handler="${git_credential_handler_array["$git_auth_method"]}"
+        git_credential_handler="${git_credential_handler_array[$git_auth_method]}"
 
         debug "git_credential_handler: $git_credential_handler"
 
