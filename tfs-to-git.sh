@@ -1475,20 +1475,20 @@ function git_login_and_push() {
     # Tell git to fail instead of prompt for password
     export GIT_TERMINAL_PROMPT=0
 
-    # # Test if the git remote is already authenticated
-    # if git push >/dev/null 2>&1
-    # then
+    # Test if the git remote is already authenticated
+    if git push >/dev/null 2>&1
+    then
 
-    #     debug "Git remote $git_remote_url is already authenticated"
-    #     git_credential_handler_array["already-authenticated"]=" "
+        debug "Git remote $git_remote_url is already authenticated"
+        git_credential_handler_array[already-authenticated]=" "
 
-    # fi
+    fi
 
     if [[ -n "$git_access_token_arg" ]]
     then
 
         debug "--git-access-token arg provided"
-        git_credential_handler_array["--git-access-token"]="$git_access_token_arg"
+        git_credential_handler_array[--git-access-token]="$git_access_token_arg"
 
     fi
 
@@ -1496,7 +1496,7 @@ function git_login_and_push() {
     then
 
         debug "Found GIT_ACCESS_TOKEN, may try to use it"
-        git_credential_handler_array["GIT_ACCESS_TOKEN"]="$GIT_ACCESS_TOKEN"
+        git_credential_handler_array[GIT_ACCESS_TOKEN]="$GIT_ACCESS_TOKEN"
 
     fi
 
@@ -1511,7 +1511,7 @@ function git_login_and_push() {
         # Using the credential handler doc from Azure
         # https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=azure-devops&tabs=Linux#use-a-pat
         git_access_token="$(printf ":%s" "$tfs_access_token" | base64)"
-        git_credential_handler_array["tfs_access_token"]="-c http.extraHeader='Authorization: Basic ${git_access_token}'"
+        git_credential_handler_array[tfs_access_token]="-c http.extraHeader='Authorization: Basic ${git_access_token}'"
 
     fi
 
