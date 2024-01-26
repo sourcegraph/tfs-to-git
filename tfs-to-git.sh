@@ -1475,7 +1475,7 @@ function git_login_and_push() {
     then
 
         debug "Git remote $git_remote_url is already authenticated"
-        git_credential_handler_array["already authenticated"]=" "
+        git_credential_handler_array["already authenticated"]=""
 
     fi
 
@@ -1524,6 +1524,7 @@ function git_login_and_push() {
             break
         else
             warning "Pushing to git remote origin using $git_auth_method method failed"
+            warning "Git push command run: git $git_credential_handler push $git_push_command_args"
         fi
 
     done
