@@ -1522,6 +1522,8 @@ function git_login_and_push() {
         # Get the credential handler
         git_credential_handler="${git_credential_handler_array[$git_auth_method]}"
 
+        debug "git_credential_handler: $git_credential_handler"
+
         # Break out of this loop on the first auth method that works
         if ! GIT_ASKPASS=true git $git_credential_handler push $git_push_command_args
         then
