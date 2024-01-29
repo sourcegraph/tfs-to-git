@@ -2,44 +2,64 @@
 
 # TODO:
 
-    # Test pushing Git repo back to Azure DevOps
-
     # Handle cases of deleting / renaming files
-        # Check if there are any other actions that could happen in a changeset
-        # https://learn.microsoft.com/en-us/rest/api/azure/devops/tfvc/changesets/get-changeset-changes?view=azure-devops-rest-7.1&tabs=HTTP#versioncontrolchangetype
-        # Read the items from the changeset metadata?
-        # Test them
-        # Ensure they are supported
 
-        # VersionControlChangeType
-        # add
-        # all
-        # branch
-        # delete
-        # edit
-        # encoding
-        # lock
-        # merge
-        # none
-        # property
-        # rename
-        # rollback
-        # sourceRename
-        # targetRename
-        # undelete
+        # List of actions that could happen in a changeset
+            # https://learn.microsoft.com/en-us/rest/api/azure/devops/tfvc/changesets/get-changeset-changes?view=azure-devops-rest-7.1&tabs=HTTP#versioncontrolchangetype
 
-        # Rename the log file to start with a fresh file
-        # Run a full execution start to finish
-        # Log level info
-        # Capture the tf and git output
-        # Compare for when the change set metadata says delete
-        # Check if the git command removes the file
-            # I'm sure it doesn't because the tf get command doesn't delete files
+        # Gather the frequency of each of these actions
+            # cat .repos/dev.azure.com/marc-leblanc/.tfs-to-git/repo-history.json | jq | grep "change-type" | sed 's/\ //g' | sort | uniq -c
+
         # Organize the 16 actions into CRUD
+            # VersionControlChangeType
+                # all
+                # branch
+                # encoding
+                # merge
+                # none
+                # property
+                # rollback
+                # undelete
+                # targetRename
+            # Delete - jq query the changeset items, find the delete items, delete them
+                # delete
+                    # sourceRename
+            # Update - ??
+            # Create - tf get handles these already
+                # add
+                # rename
+                    # Test if git sees this as a rename with the git add ., if we delete the original file name
+            # Read - No change required for this script?
+            # Ignore
+                # lock
+                # edit
+
+        # Frequency in the first 30 changesets of the test repo
+            #   24 "@change-type":"add",
+            #    5 "@change-type":"delete",
+            #    2 "@change-type":"delete,sourcerename",
+            #    2 "@change-type":"rename",
+
+
+        # Loop through the changeset items
         # Verify if each of the actions is taken
-        # Create CRUD routines in the conversion function, map the metadata action to the routines: delete, update, create
+        # Create CRUD routines in the conversion function
+        # Map the metadata action to the routines: delete, update
         # Parse the actions items in the metadata, set flags for which CRUD routines need to happen, and execute the delete before the tf get
         # Verify the state matches?
+
+
+        # Validation
+            # Create these changes in the test repo
+            # Read the items[].["@change-type"] from the changeset metadata
+            # Rename the log file to start with a fresh file
+            # Run a full execution start to finish
+                # Log level info
+            # Capture the tf and git output
+            # Verify the correct action was taken
+                # Compare for when the change set metadata says delete
+                # Check if the git command removes the file
+
 
     # Improve validation of existing tfs_workfold
         # Remove each matching line from $tfs_workfold

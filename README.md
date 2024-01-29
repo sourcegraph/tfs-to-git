@@ -14,7 +14,7 @@ Instructions provided for Ubuntu
 
 1. Ensure OS packages are up to date
   - `sudo apt update`
-  - `sudo apt upgrade`
+  - `sudo apt upgrade -y`
 
 2. `git`
   - Standard git CLI
@@ -95,12 +95,14 @@ source ~/.bashrc
   - It will be committed to the destination git repo, so the git CLI will apply it to all commits, dropping the matching files from the TFVC repository
   - This is a good way to exclude binary or media files from the git repo
 
-### Step 3: [Optional] Create a new remote repo
+### Step 3: [Optional] Create a new repo on your git server if you want to push the converted repo
 
-- If you want this script to push the git repo to a remote, provide the full repo URL in the `--remote` arg
-- Set up an empty git repository somewhere and copy the remote origin path
-- This script assumes the the git CLI already has authentication and push access to this remote in place
-- If not, the final stage to push the repo to this remote will fail, the local copy of the git repo is retained
+- If you want this script to push the git repo to your git server, create an empty repo on your git host and copy the clone URL
+- This script assumes the the git CLI already has authentication and push access to this remote in place, or the credentials are included in the `--remote` arg
+  - ex: `https://{access-token}:{username}@dev.azure.com/{org}/{project}/_git/{repo}`
+- If the remote URL is malformed, the script will fail to push the repo to the remote in the final step
+- If no remote URL is provided, the final step to push the repo will be skipped
+- The local clone of the git repo is always retained
 
 ### Step 4: Map TFS changeset owner names to Git author names
 
