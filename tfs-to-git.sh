@@ -60,13 +60,15 @@
                 # Compare for when the change set metadata says delete
                 # Check if the git command removes the file
 
+    # Refactor create_migration_tfs_workspace
+        # Test tf workfold separately from tf workspace
 
-    # Improve validation of existing tfs_workfold
-        # Remove each matching line from $tfs_workfold
-        # Then strip out all non-letter characters
-        # Then count the lines remaining
-        # If there are more than 0 lines remaining
-        # Then there are extra work folder mappings in the workspace
+        # Improve validation of existing tfs_workfold
+            # Remove each matching line from $tfs_workfold
+            # Then strip out all non-letter characters
+            # Then count the lines remaining
+            # If there are more than 0 lines remaining
+            # Then there are extra work folder mappings in the workspace
 
     # Add progress and summary stats
         # Progress stats, per changeset
@@ -919,6 +921,13 @@ function create_migration_tfs_workspace() {
     # Workspace:  $tfs_workspace
     # Collection: $tfs_server/$tfs_collection
     #  $tfs_source_repo_path: $git_target_directory
+    # TODO: This errored out on the customer's machine
+    # 2024-01-29;10:27:56;tfs-to-git;v0.1;INFO;Checking external dependencies
+    # 2024-01-29;10:27:57;tfs-to-git;v0.1;INFO;Initializing new git repository in /sourcegraph/tfs-to-git/.repos/dev.azure.com/marc-leblanc
+    # 2024-01-29;10:27:57;tfs-to-git;v0.1;INFO;Creating .gitignore file
+    # 2024-01-29;10:27:58;tfs-to-git;v0.1;ERROR;Invalid tf workfold command:
+    # t2g-marc-leblanc
+    # Saw the same even after rm -rf ./repos
     tfs_workfold=$(tf workfold -workspace:"$tfs_workspace" 2> /dev/null)
 
     debug "tfs_workfold received from $tfs_workspace workspace:\n$tfs_workfold"
@@ -936,8 +945,7 @@ function create_migration_tfs_workspace() {
     elif [[ "$tfs_workfold" == *"Team Explorer Everywhere Command Line Client"* ]]
     then
 
-        error "Invalid tf workfold command:\n$tfs_workspace "
-
+        warning "Invalid tf workfold command:\n$tfs_workfold"
     else
         debug "Workspace already $tfs_workspace exists"
         workspace_exists=true
