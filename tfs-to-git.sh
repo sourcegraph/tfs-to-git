@@ -928,7 +928,7 @@ function create_migration_tfs_workspace() {
     # 2024-01-29;10:27:58;tfs-to-git;v0.1;ERROR;Invalid tf workfold command:
     # t2g-marc-leblanc
     # Saw the same even after rm -rf ./repos
-    tfs_workfold=$(tf workfold -workspace:"$tfs_workspace" 2> /dev/null)
+    tfs_workfold=$(tf workfold -workspace:"$tfs_workspace" 2>&1 )
 
     debug "tfs_workfold received from $tfs_workspace workspace:\n$tfs_workfold"
 
@@ -947,7 +947,7 @@ function create_migration_tfs_workspace() {
 
         warning "Invalid tf workfold command:\n$tfs_workfold"
     else
-        debug "Workspace already $tfs_workspace exists"
+        debug "Workspace already exists $tfs_workspace"
         workspace_exists=true
     fi
 
@@ -1012,13 +1012,15 @@ function create_migration_tfs_workspace() {
 
     # Create the workspace for the migration
     # Note that this script leaves the workspaces existing after the script finishes
-    if ! tf workspace \
+    tf_workspace_creation_result=$(tf workspace \
             -new \
             "$tfs_workspace" \
             -collection:"$tfs_server/$tfs_collection" \
             -noprompt > /dev/null 2>&1
+            )
+    if [[ $? -ne 0 ]]
     then
-        error "Failed to create new $tfs_workspace workspace for $tfs_server/$tfs_collection"
+        error "Failed to create new $tfs_workspace workspace for $tfs_server/$tfs_collection, error message: $tf_workspace_creation_result"
     fi
 
     # TFS is different from Perforce, in that a source path can only exist in one workspace (i.e. one local target directory) at a time
