@@ -163,6 +163,7 @@ declare -i  continue_from_changeset
 declare -i  exit_status=0
 declare -A  external_dependencies_array
 declare     force_replace_git_target_directory=false
+declare     get_missing_authors
 declare     get_repo_size_arg=false
 declare     git_access_token_arg
 declare     git_default_branch="main"
@@ -362,6 +363,11 @@ function print_usage_instructions_and_exit() {
         arg will take precedence, but the environment variable will still tried
         if the token provided in the script arg fails
 
+    --get-missing-authors
+        Get all authors from TFS repo history,
+        and add them to the missing authors file,
+        then exit
+
     -h, --help
         Print this help message
 
@@ -461,6 +467,10 @@ function parse_and_validate_user_args() {
         -c | -collection | --collection | --tfs-collection)
             tfs_collection="$2"
             shift
+            shift
+            ;;
+        --get-missing-authors)
+            get_missing_authors=true
             shift
             ;;
         -d | --dependencies | --check-dependencies)
@@ -1155,6 +1165,14 @@ function get_tfs_repo_history() {
     # Set our tfs_history_end_changeset to the start + the batch size
     tfs_history_end_changeset=$((tfs_history_start_changeset + changelist_batch_size - 1))
 
+    # If the user ran the script with --get-missing-authors,
+    # then get all history, to get all authors
+    if $get_missing_authors; then
+        info "Getting all history to get all authors missing from the author file"
+        # Get all history
+        tfs_history_end_changeset=$tfs_latest_changeset_id
+    fi
+
     # If $tfs_history_end_changeset -ge latest, then set tfs_history_end_changeset=latest
     if [[ "$tfs_history_end_changeset" -ge "$tfs_latest_changeset_id" ]]
     then
@@ -1228,6 +1246,12 @@ function map_tfs_owners_to_git_authors() {
     # If there's no mapping file, or if the user is missing from the mapping file, then
         # Log the user's DOMAIN\user to the missing owners file
         # If the author's name is DOMAIN\user, then use user@domain
+
+    # If the user ran the script with --get-missing-authors, then
+        # Get all commits in history
+        # Get all the authors from the history
+        # Remove the ones which are in the authors mapping file
+        # Output the rest to the missing authors file
 
     # Verify the name mapping JSON file provided in the user args exists
     if [ ! -f "$author_name_mapping_file" ]
@@ -1681,13 +1705,19 @@ function main() {
     create_migration_tfs_workspace
 
     # If the user provided the --repo-size arg, get the size of the repo, then we need to run all the above functions first, then this, then exit
-    if $get_repo_size_arg; then get_repo_size ;fi
+    if $get_repo_size_arg; then get_repo_size; fi
 
     # Run the migration process
     get_tfs_repo_history
 
-    if $newer_changesets_to_migrate
-    then
+    # If the user provided the --get-missing-authors arg
+    # then create the author name mapping file and exit
+    if $get_missing_authors; then
+        convert_tfs_repo_history_file_from_xml_to_json
+        map_tfs_owners_to_git_authors
+    fi
+
+    if $newer_changesets_to_migrate; then
         convert_tfs_repo_history_file_from_xml_to_json
         map_tfs_owners_to_git_authors
         convert_tfs_changesets_to_git_commits
