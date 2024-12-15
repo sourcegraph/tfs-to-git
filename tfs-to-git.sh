@@ -985,7 +985,6 @@ function create_migration_tfs_workspace() {
 
     elif [[ "$tfs_workfold" == *"Team Explorer Everywhere Command Line Client"* ]]
     then
-
         warning "Invalid tf workfold command:\n$tfs_workfold"
     else
         debug "Workspace already exists $tfs_workspace"
@@ -1005,14 +1004,15 @@ function create_migration_tfs_workspace() {
 
         debug "tfs_workfold_parameters required to be valid: ${tfs_workfold_parameters[*]}"
 
+        ### TODO: Fix this, it recreates the workspace every time
         # Loop through the array of lines and check if each is in the workfold
-        for line in "${tfs_workfold_parameters[@]}"
+        for tfs_workfold_parameter in "${tfs_workfold_parameters[@]}"
         do
 
-            if [[ "$tfs_workfold" != *"${line}"* ]]
+            if [[ ${tfs_workfold} != *"$tfs_workfold_parameter"* ]]
             then
 
-                debug "Line missing from the $tfs_workspace workspace:\n$line"
+                debug "Line missing from the $tfs_workspace workspace:\n$tfs_workfold_parameter"
                 workspace_is_valid=false
 
             # else
@@ -1287,11 +1287,6 @@ function map_tfs_owners_to_git_authors() {
         # Name: DOMAIN\user
         # Email: user@arg-domain
         # Use the email domain from --author-email-domain
-
-    # If the --author-email-domain arg wasn't provided, then guess
-    if [[ -z $author_email_domain ]]; then
-        author_email_domain="domain.com"
-    fi
 
     # Iterate through the list of owners from the TFS repo history file
     for changeset_owner_to_map_from_tfs_history in "${changeset_owner_usernames_from_tfs_history[@]}"
