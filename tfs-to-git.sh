@@ -1012,7 +1012,7 @@ function create_migration_tfs_workspace() {
             debug "Checking if $tfs_workfold_parameter is in $tfs_workfold"
 
             #if [[ "$tfs_workfold" == *"$tfs_workfold_parameter"* ]]
-            if [[ " ${tfs_workfold[*]} " = *"$tfs_workfold_parameter"* ]]
+            if [[ "${tfs_workfold[*]}" = *"$tfs_workfold_parameter"* ]]
 
             then
 
