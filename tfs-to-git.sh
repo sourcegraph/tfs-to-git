@@ -1359,11 +1359,15 @@ function map_tfs_owners_to_git_authors() {
             name_array=""
             IFS='.' read -r -a name_array <<< "$name"
 
+            # TODO: Fix name
             # Capitalize the first letter of each word
             name_capitalized=""
             for word in "${name_array[@]}"; do
-                name_capitalized+="$(tr '[:lower:]' '[:upper:]' <<< ${word:0:1})${word:1}"
+                name_capitalized+="$(tr '[:lower:]' '[:upper:]' <<< ${word:0:1})${word:1} "
             done
+
+            # Remove the trailing space
+            name_capitalized="${name_capitalized%?}"
 
             # Assemble the author string
             author="${name_capitalized} <${email_address}>"
