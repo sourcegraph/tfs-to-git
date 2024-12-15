@@ -189,7 +189,7 @@ declare -r  script_version="v0.1"
 declare     tfs_access_token
 declare     tfs_access_token_arg
 declare     tfs_changeset_id_array
-declare     tfs_collection
+declare     tfs_collection="DefaultCollection"
 declare     tfs_creds_provided
 declare -i  tfs_history_start_changeset=1
 declare     tfs_latest_changeset_json
@@ -325,7 +325,7 @@ function print_usage_instructions_and_exit() {
 
     Usage:
 
-    ./$script_name.sh -a AUTHORS.json -t TFS_SERVER -c COLLECTION -s SOURCE_PATH
+    ./$script_name.sh -a AUTHORS.json -t TFS_SERVER -c COLLECTION -p PROJECT -s SOURCE_PATH
 
     Arguments:
 
@@ -338,10 +338,9 @@ function print_usage_instructions_and_exit() {
         Default: 100
 
     -c, -collection, --collection, --tfs-collection
-        [Required]
         TFS collection which contains the source repo
         Does not include the TFS server hostname,
-        Ex. YourCollectionName
+        Default: DefaultCollection
 
     -d, --dependencies, --check-dependencies
         Check depdencies and outputs versions, then exits
@@ -379,6 +378,9 @@ function print_usage_instructions_and_exit() {
         All errors terminate the script
         Default: INFO
 
+    -p, --project
+        TFS project name
+
     -r, --remote, --git-remote
         git remote origin
         If provided, the target Git repo will be pushed to this remote at the
@@ -404,6 +406,8 @@ function print_usage_instructions_and_exit() {
     -t, --tfs, --tfs-server
         Hostname of your TFS / Azure DevOps server
         Default: https://dev.azure.com
+        Include any port numbers and virtual directories, if applicable, ex.
+        http://self-hosted-ado.example.com:8080/tfs
 
     --tfs-token, --tfs-access-token
         Access token of an account on your TFS / Azure DevOps server to
@@ -502,8 +506,9 @@ function parse_and_validate_user_args() {
                 shift
             fi
             ;;
-        -p | --validate-paths)
-            validate_paths=true
+        -p | --project)
+            tfs_project="$2"
+            shift
             shift
             ;;
         -r | --remote | --git-remote)
@@ -533,6 +538,10 @@ function parse_and_validate_user_args() {
         --tfs-user | --tfs-username)
             tfs_username_arg=$2
             shift
+            shift
+            ;;
+        --validate-paths)
+            validate_paths=true
             shift
             ;;
         -v | --version)
@@ -580,12 +589,14 @@ function set_file_paths_after_parsing_user_args(){
 
     # Collection
     tfs_collection_for_path="${tfs_collection//\//-}"   # Replace all '/' with '-'
+
     # Source path
     tfs_source_repo_path_for_path="${tfs_source_repo_path//\$\/}"           # Remove all '$/'
-    tfs_source_repo_path_for_url="${tfs_source_repo_path//\$\/}"           # Remove all '$/'
-    tfs_source_repo_path_for_path="${tfs_source_repo_path_for_path//\//-}"  # Replace all '/' with '-'
+    tfs_source_repo_path_for_path="${tfs_source_repo_path_for_path//\//-}"  # Replace all remaining '/' with '-'
+    tfs_source_repo_path_for_url="${tfs_source_repo_path//\$\/}"            # Remove all '$/'
+
     # Assemble the git target directory path
-    git_target_directory=$initial_pwd/$git_target_directory_root/$tfs_server_for_path/$tfs_collection_for_path
+    git_target_directory="$initial_pwd/$git_target_directory_root/$tfs_server_for_path/$tfs_collection_for_path"
 
     # Set the name of the TFS workspace to use for migration based on user inputs
     # to avoid conflicting workspace names when processing multiple branches of the same collection in parallel
@@ -616,7 +627,7 @@ function set_file_paths_after_parsing_user_args(){
     tfs_latest_changeset_json="$working_files_directory/latest-changeset.json"
     tfs_latest_changeset_xml="$working_files_directory/latest-changeset.xml"
 
-    missing_authors_file="$initial_pwd/$tfs_server_for_path-$tfs_collection_for_path-missing-authors.json"
+    missing_authors_file="$initial_pwd/$tfs_server_for_path-$tfs_collection_for_path-$tfs_project-missing-authors.json"
 
     tfs_path_url="$tfs_server/$tfs_collection/$tfs_project/_versionControl?path=$/$tfs_project/$tfs_source_repo_path_for_url"
     # https://dev.azure.com/marc-leblanc/test2/_versionControl?path=$/test2/README.md
@@ -1212,6 +1223,11 @@ function convert_tfs_repo_history_file_from_xml_to_json() {
 
 
 function map_tfs_owners_to_git_authors() {
+
+    # If there's a mapping file, then use it
+    # If there's no mapping file, or if the user is missing from the mapping file, then
+        # Log the user's DOMAIN\user to the missing owners file
+        # If the author's name is DOMAIN\user, then use user@domain
 
     # Verify the name mapping JSON file provided in the user args exists
     if [ ! -f "$author_name_mapping_file" ]
