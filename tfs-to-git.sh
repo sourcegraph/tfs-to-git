@@ -1446,6 +1446,7 @@ function convert_tfs_changesets_to_git_commits() {
 
         # Extract fields from the changeset info
         current_changeset_owner=$(      echo "$current_changeset_info" | jq -r '.[0]')
+        current_changeset_owner_backslash_escaped="${current_changeset_owner//\\/\\\\}"
         # Could support separate authors and committers, but would have to double this through the author mapping
         # current_changeset_committer=$(  echo "$current_changeset_info" | jq -r '.[1]')
         current_changeset_date=$(       echo "$current_changeset_info" | jq -r '.[2]')
@@ -1454,12 +1455,12 @@ function convert_tfs_changesets_to_git_commits() {
         # Get the author's name and email address in Git format
         git_author="${author_mapping_array["$current_changeset_owner"]}"
 
-        debug "git_author: $git_author"
+        debug "git_author: ${git_author//\\/\\\\}"
 
         # Validate (again) that the author is mapped
         if [ -z "$git_author" ]
         then
-            error "TFS changeset $current_changeset_id owner \n$current_changeset_owner\n is not mapped in $author_name_mapping_file"
+            error "TFS changeset $current_changeset_id owner \n$current_changeset_owner_backslash_escaped\n is not mapped in $author_name_mapping_file"
         fi
 
         # Decrement the number of changesets remaining
@@ -1467,7 +1468,7 @@ function convert_tfs_changesets_to_git_commits() {
 
         # Print commit details to the user to show progress
         info "Downloading changeset $current_changeset_id from TFS [$changesets_remaining remaining]:"
-        info "Author:  $current_changeset_owner -> $git_author"
+        info "Author:  $current_changeset_owner_backslash_escaped -> $git_author"
         info "Date:    $current_changeset_date"
         info "Message: $current_changeset_message"
         info "tf output: "
