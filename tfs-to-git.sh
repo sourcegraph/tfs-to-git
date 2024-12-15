@@ -998,9 +998,10 @@ function create_migration_tfs_workspace() {
         # Assemble an array of the lines the workfold must contain to be valid
         tfs_workfold_parameters=(
             "$tfs_workspace"
-            "$tfs_server/$tfs_collection/"
+            "$tfs_server"
             "$tfs_source_repo_path: $git_target_directory"
         )
+            #"$tfs_server/$tfs_collection/"
 
         debug "tfs_workfold_parameters required to be valid: ${tfs_workfold_parameters[*]}"
 
