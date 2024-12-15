@@ -629,7 +629,7 @@ function set_file_paths_after_parsing_user_args(){
 
     missing_authors_file="$initial_pwd/$tfs_server_for_path-$tfs_collection_for_path-$tfs_project-missing-authors.json"
 
-    tfs_path_url="$tfs_server/$tfs_collection/$tfs_project/_versionControl?path=$/$tfs_project/$tfs_source_repo_path_for_url"
+    tfs_path_url="$tfs_server/$tfs_collection/$tfs_project/_versionControl?path=$/$tfs_source_repo_path_for_url"
     # https://dev.azure.com/marc-leblanc/test2/_versionControl?path=$/test2/README.md
     # https://dev.azure.com/marc-leblanc/marc-test-tfvc/_versionControl?path=$/marc-test-tfvc/app/main/dev/README.md
 
