@@ -1318,26 +1318,55 @@ function map_tfs_owners_to_git_authors() {
                 # Name: user
                 # Email: username
 
+            email_address=""
+            email_domain=""
+            name=""
+            user_domain=""
+            user=""
+
+            # Try to get the user's username and domain from the changeset_owner_to_map_from_tfs_history
             # If the user's username is in the format of DOMAIN\user
             if [[ "$changeset_owner_to_map_from_tfs_history" =~ ^[A-Za-z][A-Za-z0-9\ \-\.]+\\[A-Za-z0-9][A-Za-z0-9\ \-\.]+$ ]]; then
 
-                debug "Author is in the format of DOMAIN\user $changeset_owner_to_map_from_tfs_history"
+                debug "Author is in the format of DOMAIN\user $changeset_owner_to_map_from_tfs_history_backslash_escaped"
 
+                IFS="$(printf '\')" read -r -a author_domain_user_array <<< "$changeset_owner_to_map_from_tfs_history"
+                user_domain="${author_domain_user_array[0]}"
+                user="${author_domain_user_array[1]}"
+                name="$user"
 
-                # # If --author-email-domain is provided, then use it
-                #     # Name: DOMAIN\user
-                #     # Email: user@arg-domain
-                #     IFS="$(printf '\')" read -r -a author_domain_user_array <<< "$changeset_owner_to_map_from_tfs_history"
-                #     domain="${author_domain_user_array[0]}"
-                #     user="${author_domain_user_array[1]}"
-                #     email="${changeset_owner_to_map_from_tfs_history_b}@${author_email_domain}"
+            else
 
-
-                # If --author-email-domain is not provided, then
-                    # Name: user
-                    # Email: user@domain.com
+                user="${changeset_owner_to_map_from_tfs_history}"
+                name="${changeset_owner_to_map_from_tfs_history}"
 
             fi
+
+            # Determine the email domain
+            if [[ -n $author_email_domain ]]; then
+
+                email_domain="$author_email_domain"
+
+            elif [[ -n $user_domain ]]; then
+
+                # Remove any spaces, and convert the domain to lowercase
+                email_domain="$(echo "$user_domain" | tr -d ' ' | tr '[:upper:]' '[:lower:]')"
+
+            else
+                email_domain="domain.com"
+            fi
+
+            # Assemble the email address
+            email_address="${user}@${email_domain}"
+
+            # Format the name
+            # Replace any periods in the username with spaces
+            name="$(echo "$name" | tr '.' ' ')"
+            # Capitalize the first letter of each word
+            name="$(tr '[:lower:]' '[:upper:]' <<< ${name:0:1})${name:1}"
+
+            # Assemble the author string
+            author="${name} <${email_address}>"
 
         else
             debug "Mapping author: $author"
