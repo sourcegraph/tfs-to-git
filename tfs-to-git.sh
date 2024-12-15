@@ -156,6 +156,7 @@
 # declare -A is an associative array
 # declare -i is an integer variable
 # declare -r is a read-only variable
+declare     author_email_domain
 declare -A  author_mapping_array
 declare     author_name_mapping_file
 declare -i  changelist_batch_size=100
@@ -163,7 +164,7 @@ declare -i  continue_from_changeset
 declare -i  exit_status=0
 declare -A  external_dependencies_array
 declare     force_replace_git_target_directory=false
-declare     get_missing_authors
+declare     get_missing_authors=false
 declare     get_repo_size_arg=false
 declare     git_access_token_arg
 declare     git_default_branch="main"
@@ -334,6 +335,11 @@ function print_usage_instructions_and_exit() {
         JSON file to map TFS owner names to git author tags
         Default: ./authors.json
 
+    -ad, --author-email-domain
+        If a user is missing from the authors file, then use:
+        Email: user@this_domain
+        Name: DOMAIN\user
+
     -b, --batch-size
         Max number of changesets to process in a single run
         Default: 100
@@ -456,6 +462,11 @@ function parse_and_validate_user_args() {
         case $1 in
         -a | --authors)
             author_name_mapping_file="$2"
+            shift
+            shift
+            ;;
+        -ad | --author-email-domain)
+            author_email_domain="$2"
             shift
             shift
             ;;
@@ -1160,18 +1171,8 @@ function get_tfs_repo_history() {
         return
     fi
 
-    info "Batch size is $changelist_batch_size"
-
     # Set our tfs_history_end_changeset to the start + the batch size
     tfs_history_end_changeset=$((tfs_history_start_changeset + changelist_batch_size - 1))
-
-    # If the user ran the script with --get-missing-authors,
-    # then get all history, to get all authors
-    if $get_missing_authors; then
-        info "Getting all history to get all authors missing from the author file"
-        # Get all history
-        tfs_history_end_changeset=$tfs_latest_changeset_id
-    fi
 
     # If $tfs_history_end_changeset -ge latest, then set tfs_history_end_changeset=latest
     if [[ "$tfs_history_end_changeset" -ge "$tfs_latest_changeset_id" ]]
@@ -1182,10 +1183,19 @@ function get_tfs_repo_history() {
 
     else
 
+        info "Batch size is $changelist_batch_size"
         info "Migrating up to changeset $tfs_history_end_changeset in this batch"
         # Set the exit status to 3, so that the calling script knows that more changesets remain to be migrated, and can call the script to run the next batch sooner than the next interval
         exit_status=3
 
+    fi
+
+    # If the user ran the script with --get-missing-authors,
+    # then get all history, to get all authors
+    if $get_missing_authors; then
+        info "Getting all history to get all authors missing from the author file"
+        # Get all history
+        tfs_history_end_changeset=$tfs_latest_changeset_id
     fi
 
     info "Getting changeset history metadata for $tfs_source_repo_path, from changeset $tfs_history_start_changeset to changeset $tfs_history_end_changeset, this may take more time for larger batches"
@@ -1242,10 +1252,12 @@ function convert_tfs_repo_history_file_from_xml_to_json() {
 
 function map_tfs_owners_to_git_authors() {
 
-    # If there's a mapping file, then use it
-    # If there's no mapping file, or if the user is missing from the mapping file, then
+    # If there's an authors mapping file, then use it
+    # If there's no authors mapping file, or if the user is missing from the mapping file, then
         # Log the user's DOMAIN\user to the missing owners file
-        # If the author's name is DOMAIN\user, then use user@domain
+        # Name: DOMAIN\user
+        # Email: user@arg-domain
+        # Use the email domain from --author-email-domain
 
     # If the user ran the script with --get-missing-authors, then
         # Get all commits in history
@@ -1256,7 +1268,7 @@ function map_tfs_owners_to_git_authors() {
     # Verify the name mapping JSON file provided in the user args exists
     if [ ! -f "$author_name_mapping_file" ]
     then
-        error "Owner mapping file $author_name_mapping_file does not exist, and is required"
+        warning "Owner mapping file $author_name_mapping_file does not exist"
     fi
 
     # Get a the list of unique changeset owners from the history file
@@ -1303,6 +1315,13 @@ function map_tfs_owners_to_git_authors() {
     # This line is the problem that splits usernames with spaces in them
     done
 
+    # If the --author-email-domain arg wasn't provided, then guess
+    if [[ -z $author_email_domain ]]; then
+
+    else
+        author_email_domain="domain.com"
+    fi
+
     # If the author name mapping file is missing authors, list them out for the user to add
     if [[ -n "${missing_authors[*]}" ]]
     then
@@ -1320,7 +1339,7 @@ function map_tfs_owners_to_git_authors() {
 
         echo "}" >> "$missing_authors_file"
 
-        error "The author mapping file at $author_name_mapping_file is missing changeset owners from the TFS history file; these authors have been written to $missing_authors_file for you"
+        warning "The author mapping file at $author_name_mapping_file is missing changeset owners from the TFS history file; these authors have been written to $missing_authors_file for you"
 
     fi
 
