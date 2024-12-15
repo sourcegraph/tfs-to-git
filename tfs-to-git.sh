@@ -1359,7 +1359,7 @@ function map_tfs_owners_to_git_authors() {
             name="$(echo "$name" | tr '.' ' ')"
             # Capitalize the first letter of each word
             name_array="($name)"
-            name="${name_array[*]^}"
+            name="${name_array[@]^}"
 #            name="$(tr '[:lower:]' '[:upper:]' <<< ${name:0:1})${name:1}"
 
             # Assemble the author string
