@@ -516,6 +516,7 @@ function parse_and_validate_user_args() {
             shift
             ;;
         -l | --log-level)
+            # TODO: Fix this
             # If there's no next parameter, or if it begins with -
             if [[ -z "$2" ]] || [[ "$2" == "-*" ]]
             then
@@ -1253,11 +1254,6 @@ function convert_tfs_repo_history_file_from_xml_to_json() {
 function map_tfs_owners_to_git_authors() {
 
     # If there's an authors mapping file, then use it
-    # If there's no authors mapping file, or if the user is missing from the mapping file, then
-        # Log the user's DOMAIN\user to the missing owners file
-        # Name: DOMAIN\user
-        # Email: user@arg-domain
-        # Use the email domain from --author-email-domain
 
     # If the user ran the script with --get-missing-authors, then
         # Get all commits in history
@@ -1286,41 +1282,63 @@ function map_tfs_owners_to_git_authors() {
     debug "changeset_owner_usernames_from_tfs_history: "
     debug "${changeset_owner_usernames_from_tfs_history[@]}"
 
+    # If there's no authors mapping file, or if the user is missing from the mapping file, then
+        # Log the user's DOMAIN\user to the missing owners file
+        # Name: DOMAIN\user
+        # Email: user@arg-domain
+        # Use the email domain from --author-email-domain
+
+    # If the --author-email-domain arg wasn't provided, then guess
+    if [[ -z $author_email_domain ]]; then
+        author_email_domain="domain.com"
+    fi
+
     # Iterate through the list of owners from the TFS repo history file
     for changeset_owner_to_map_from_tfs_history in "${changeset_owner_usernames_from_tfs_history[@]}"
     do
 
+        changeset_owner_to_map_from_tfs_history_backslash_escaped="${changeset_owner_to_map_from_tfs_history//\\/\\\\}"
+
         # Use jq to search the $author_name_mapping_file for the author's email address from the TFS repo history file
-        author=$(jq -r '.["'"${changeset_owner_to_map_from_tfs_history//\\/\\\\}"'"]' "$author_name_mapping_file")
+        author=$(jq -r '.["'"$changeset_owner_to_map_from_tfs_history_backslash_escaped"'"]' "$author_name_mapping_file")
 
         # If jq didn't find the changeset owner from the $tfs_repo_history_file_json in the $author_name_mapping_file
         if [ -z "$author" ] || [ "$author" == "null" ]
         then
 
-            debug "Author missing from mapping file: $changeset_owner_to_map_from_tfs_history"
+            debug "Author missing from mapping file: $changeset_owner_to_map_from_tfs_history_backslash_escaped"
 
             # Add the author to the list of missing authors
             missing_authors+=("$changeset_owner_to_map_from_tfs_history")
 
+            # Infer the needed author information
+
+            # If the TFS server uses usernames like user@domain.tld
+            # If the user's username is already an email address, like user@domain.tld then
+                # Name: user
+                # Email: username
+
+            # If the user's username is in the format of DOMAIN\user
+
+                # If --author-email-domain is provided, then use it
+                    # Name: DOMAIN\user
+                    # Email: user@arg-domain
+
+
+                # If --author-email-domain is not provided, then
+                    # Name: user
+                    # Email: user@domain.com
+
         else
-
             debug "Mapping author: $author"
-
-            # Store the author in the associative array
-            author_mapping_array["${changeset_owner_to_map_from_tfs_history}"]="${author}"
-
         fi
+
+        # Store the author in the associative array
+        author_mapping_array["${changeset_owner_to_map_from_tfs_history}"]="${author}"
 
     # Read the next line from the changeset_owner_usernames_from_tfs_history list
     # This line is the problem that splits usernames with spaces in them
     done
-
-    # # If the --author-email-domain arg wasn't provided, then guess
-    # if [[ -z $author_email_domain ]]; then
-
-    # else
-    #     author_email_domain="domain.com"
-    # fi
 
     # If the author name mapping file is missing authors, list them out for the user to add
     if [[ -n "${missing_authors[*]}" ]]
