@@ -1315,12 +1315,12 @@ function map_tfs_owners_to_git_authors() {
     # This line is the problem that splits usernames with spaces in them
     done
 
-    # If the --author-email-domain arg wasn't provided, then guess
-    if [[ -z $author_email_domain ]]; then
+    # # If the --author-email-domain arg wasn't provided, then guess
+    # if [[ -z $author_email_domain ]]; then
 
-    else
-        author_email_domain="domain.com"
-    fi
+    # else
+    #     author_email_domain="domain.com"
+    # fi
 
     # If the author name mapping file is missing authors, list them out for the user to add
     if [[ -n "${missing_authors[*]}" ]]
