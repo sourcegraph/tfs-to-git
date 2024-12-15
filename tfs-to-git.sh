@@ -1001,43 +1001,32 @@ function create_migration_tfs_workspace() {
             "$tfs_server/$tfs_collection/"
             "$tfs_source_repo_path: $git_target_directory"
         )
-        tfs_workfold_parameters_lowercase="${tfs_workfold_parameters,,}"
 
+        # Perform a case-insensitive comparison, by lowercasing everything
+        tfs_workfold_parameters_lowercase="${tfs_workfold_parameters,,}"
         tfs_workfold_lowercase="${tfs_workfold,,}"
 
-        debug "tfs_workfold_parameters required to be valid: ${tfs_workfold_parameters_lowercase[*]}"
-
-        ### TODO: Fix this, it recreates the workspace every time
         # Loop through the array of lines and check if each is in the workfold
         for tfs_workfold_parameter in "${tfs_workfold_parameters_lowercase[@]}"
         do
 
-            debug "Checking if $tfs_workfold_parameter is in $tfs_workfold_lowercase"
+            if [[ "${tfs_workfold_lowercase[*]}" = *"$tfs_workfold_parameter"* ]]; then
 
-            #if [[ "$tfs_workfold" == *"$tfs_workfold_parameter"* ]]
-            if [[ "${tfs_workfold_lowercase[*]}" = *"$tfs_workfold_parameter"* ]]
-
-            then
-
-                debug "Line is in the $tfs_workspace workspace:\n$tfs_workfold_parameter"
+                true
 
             else
 
                 debug "Line missing from the $tfs_workspace workspace:\n$tfs_workfold_parameter"
                 workspace_is_valid=false
 
-            # else
-                # Improve validation of existing tfs_workfold
-                    # Remove each matching line from $tfs_workfold
-                    # Then strip out all non-letter characters
-                    # Then count the lines remaining
-                    # If there are more than 0 lines remaining
-                    # Then there are extra work folder mappings in the workspace
-
+            # Improve validation of existing tfs_workfold
+                # Remove each matching line from $tfs_workfold
+                # Then strip out all non-letter characters
+                # Then count the lines remaining
+                # If there are more than 0 lines remaining
+                # Then there are extra work folder mappings in the workspace
             fi
-
         done
-
     fi
 
     # If the workspace exists and is valid, then we're good to return and continue to use the existing workspace
