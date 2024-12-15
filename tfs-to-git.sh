@@ -998,22 +998,24 @@ function create_migration_tfs_workspace() {
         # Assemble an array of the lines the workfold must contain to be valid
         tfs_workfold_parameters=(
             "$tfs_workspace"
-            "$tfs_server"
+            "$tfs_server/$tfs_collection/"
             "$tfs_source_repo_path: $git_target_directory"
         )
-            #"$tfs_server/$tfs_collection/"
+        tfs_workfold_parameters_lowercase="${tfs_workfold_parameters~~}"
 
-        debug "tfs_workfold_parameters required to be valid: ${tfs_workfold_parameters[*]}"
+        tfs_workfold_lowercase="${tfs_workfold~~}"
+
+        debug "tfs_workfold_parameters required to be valid: ${tfs_workfold_parameters_lowercase[*]}"
 
         ### TODO: Fix this, it recreates the workspace every time
         # Loop through the array of lines and check if each is in the workfold
-        for tfs_workfold_parameter in "${tfs_workfold_parameters[@]}"
+        for tfs_workfold_parameter in "${tfs_workfold_parameters_lowercase[@]}"
         do
 
-            debug "Checking if $tfs_workfold_parameter is in $tfs_workfold"
+            debug "Checking if $tfs_workfold_parameter is in $tfs_workfold_lowercase"
 
             #if [[ "$tfs_workfold" == *"$tfs_workfold_parameter"* ]]
-            if [[ "${tfs_workfold[*]}" = *"$tfs_workfold_parameter"* ]]
+            if [[ "${tfs_workfold_lowercase[*]}" = *"$tfs_workfold_parameter"* ]]
 
             then
 
