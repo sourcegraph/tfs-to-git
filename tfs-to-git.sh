@@ -1001,9 +1001,9 @@ function create_migration_tfs_workspace() {
             "$tfs_server/$tfs_collection/"
             "$tfs_source_repo_path: $git_target_directory"
         )
-        tfs_workfold_parameters_lowercase="${tfs_workfold_parameters~~}"
+        tfs_workfold_parameters_lowercase="${tfs_workfold_parameters,,}"
 
-        tfs_workfold_lowercase="${tfs_workfold~~}"
+        tfs_workfold_lowercase="${tfs_workfold,,}"
 
         debug "tfs_workfold_parameters required to be valid: ${tfs_workfold_parameters_lowercase[*]}"
 
