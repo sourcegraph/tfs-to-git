@@ -2,7 +2,12 @@
 
 # TODO:
 
+    # Git config --global
+        # Find a way to not need global config, so it doesn't mess with other git operations on the host
+
     # Handle cases of deleting / renaming files
+
+        # Just delete all files every time, and let git diff sort it out?
 
         # List of actions that could happen in a changeset
             # https://learn.microsoft.com/en-us/rest/api/azure/devops/tfvc/changesets/get-changeset-changes?view=azure-devops-rest-7.1&tabs=HTTP#versioncontrolchangetype
@@ -91,7 +96,7 @@
         # If Git remote is provided, test its connection during input validation (ie. git can access credentials, start a session, network connectivity, etc.)
 
     # In the calling script, take list of repos as an arg in the code hosts yaml file
-        # Default “all”
+        # Default "all"
         # Parallelize by running on multiple repos at a time
 
     # Sort out credential handling
@@ -570,6 +575,9 @@ function set_file_paths_after_parsing_user_args(){
     # Server
     tfs_server="${tfs_server%/}"                        # Remove the trailing slash if provided. Applies to both usages of tfs_server, connection and file path
     tfs_server_for_path="${tfs_server##*://}"           # Remove everything before and including '://'
+    tfs_server_for_path="${tfs_server_for_path/:/-}"    # Replace any remaining : (ex. port numbers) with a -
+    tfs_server_for_path="${tfs_server_for_path/\//-}"   # Replace any / (ex. virtual directories) with a -
+
     # Collection
     tfs_collection_for_path="${tfs_collection//\//-}"   # Replace all '/' with '-'
     # Source path
