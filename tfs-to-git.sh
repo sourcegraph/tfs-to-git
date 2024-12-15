@@ -1319,15 +1319,25 @@ function map_tfs_owners_to_git_authors() {
                 # Email: username
 
             # If the user's username is in the format of DOMAIN\user
+            if [[ "$changeset_owner_to_map_from_tfs_history" =~ ^[A-Za-z][A-Za-z0-9\ \-\.]+\\[A-Za-z0-9][A-Za-z0-9\ \-\.]+$ ]]; then
 
-                # If --author-email-domain is provided, then use it
-                    # Name: DOMAIN\user
-                    # Email: user@arg-domain
+                debug "Author is in the format of DOMAIN\user $changeset_owner_to_map_from_tfs_history"
+
+
+                # # If --author-email-domain is provided, then use it
+                #     # Name: DOMAIN\user
+                #     # Email: user@arg-domain
+                #     IFS="$(printf '\')" read -r -a author_domain_user_array <<< "$changeset_owner_to_map_from_tfs_history"
+                #     domain="${author_domain_user_array[0]}"
+                #     user="${author_domain_user_array[1]}"
+                #     email="${changeset_owner_to_map_from_tfs_history_b}@${author_email_domain}"
 
 
                 # If --author-email-domain is not provided, then
                     # Name: user
                     # Email: user@domain.com
+
+            fi
 
         else
             debug "Mapping author: $author"
@@ -1351,6 +1361,7 @@ function map_tfs_owners_to_git_authors() {
         for missing_author in "${missing_authors[@]}"
         do
 
+#                    "DEDALUS\alain.battistini": "Firstname Lastname <email@domain.com>",
             echo "    \"$missing_author\": \"Firstname Lastname <email@domain.com>\"," >> "$missing_authors_file"
 
         done
