@@ -1009,8 +1009,14 @@ function create_migration_tfs_workspace() {
         for tfs_workfold_parameter in "${tfs_workfold_parameters[@]}"
         do
 
+            debug "Checking if $tfs_workfold_parameter is in $tfs_workfold"
+
             if [[ ${tfs_workfold} != *"$tfs_workfold_parameter"* ]]
             then
+
+                debug "Line is in the $tfs_workspace workspace:\n$tfs_workfold_parameter"
+
+            else
 
                 debug "Line missing from the $tfs_workspace workspace:\n$tfs_workfold_parameter"
                 workspace_is_valid=false
