@@ -1359,7 +1359,8 @@ function map_tfs_owners_to_git_authors() {
             name="$(echo "$name" | tr '.' ' ')"
 
             # Capitalize the first letter of each word
-            name_array="($name)"
+            name_array=("$name")
+
             name_capitalized=""
             for word in "${name_array[@]}"; do
                 name_capitalized+="$(tr '[:lower:]' '[:upper:]' <<< ${word:0:1})${word:1}"
