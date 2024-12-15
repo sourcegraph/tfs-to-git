@@ -1356,11 +1356,10 @@ function map_tfs_owners_to_git_authors() {
 
             # Format the name
             # Replace any periods in the username with spaces
-            name="$(echo "$name" | tr '.' ' ')"
+            name_array=""
+            IFS='.' read -r -a name_array <<< "$name"
 
             # Capitalize the first letter of each word
-            name_array=("$name")
-
             name_capitalized=""
             for word in "${name_array[@]}"; do
                 name_capitalized+="$(tr '[:lower:]' '[:upper:]' <<< ${word:0:1})${word:1}"
