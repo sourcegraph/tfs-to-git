@@ -610,7 +610,6 @@ function set_file_paths_after_parsing_user_args(){
     if [ -z "$git_target_directory_root" ]; then
         git_target_directory_root="$initial_pwd/repos"
     fi
-    working_files_directory=".tfs-to-git"
 
     # Cobble together the git_target_directory from the provided and/or default args
     # Sanitize for use in file paths
@@ -659,6 +658,7 @@ function set_file_paths_after_parsing_user_args(){
     # Derive file paths and names for working files
     # tf assumes all paths are relative to the working directory
     # The script cd's into git_target_directory before these are used, so assume they are relative to git_target_directory
+    working_files_directory="$git_target_directory/.tfs-to-git"
     tfs_repo_history_file_json="$working_files_directory/repo-history.json"
     tfs_repo_history_file_xml="$working_files_directory/repo-history.xml"
     tfs_latest_changeset_json="$working_files_directory/latest-changeset.json"
@@ -1434,7 +1434,7 @@ function map_tfs_owners_to_git_authors() {
     if [[ -z "${author_mapping_array[*]}" ]]
     then
 
-        error "Could not parse any authors from $author_name_mapping_file"
+        warning "Could not parse any authors from $author_name_mapping_file"
 
     fi
 
