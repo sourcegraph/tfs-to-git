@@ -91,6 +91,7 @@ declare     git_target_directory_root
 declare     initial_pwd
 declare -i  last_commit_changeset
 declare     last_commit_execution_time
+declare     lock_file_hit
 declare     lock_file_name="tfs-to-git.lock"
 declare     lock_file_path
 declare     log_level_config="INFO"
@@ -136,8 +137,13 @@ function cleanup_and_exit() {
 
     debug "Exiting script"
 
-    debug "Removing lock file"
-    rm -f "$working_files_directory/$lock_file_name"
+    # If we hit the lock file, leave it there
+    if [[ -n "$lock_file_hit" ]]; then
+        debug "Lock file hit, not removing lock file"
+    else
+        debug "Removing lock file"
+        rm -f "$working_files_directory/$lock_file_name"
+    fi
 
     # Unset git environment variables
     unset GIT_AUTHOR_DATE
@@ -625,6 +631,7 @@ function check_or_set_lock_file() {
         old_lock_file_time="$(cat "$lock_file_path")"
         current_time="$(date +%s)"
         lock_file_age="$((current_time - old_lock_file_time))"
+        lock_file_hit="true"
         error "Lock file exists at $lock_file_path, and is $lock_file_age seconds old. Another instance of the script may already be running."
 
     else
