@@ -134,6 +134,9 @@ declare -r  reset_colour='\033[0m'
 
 function cleanup_and_exit() {
 
+    debug "Exiting script"
+
+    debug "Removing lock file"
     rm -f "$working_files_directory/$lock_file_name"
 
     # Unset git environment variables
@@ -145,6 +148,7 @@ function cleanup_and_exit() {
     unset GIT_COMMITTER_NAME
 
     # Use whatever was last set as the exit status
+    debug "Exit status: $exit_status"
     exit "$exit_status"
 
 }
