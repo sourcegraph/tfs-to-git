@@ -2,6 +2,8 @@
 
 # TODO:
 
+    # Lock file and cronjob
+
     # Add progress and summary stats
         # Progress stats, per changeset
             # Download sizes, times, and speed (mbps)
@@ -89,6 +91,8 @@ declare     git_target_directory_root
 declare     initial_pwd
 declare -i  last_commit_changeset
 declare     last_commit_execution_time
+declare     lock_file_name="tfs-to-git.lock"
+declare     lock_file_path
 declare     log_level_config="INFO"
 declare     log_level_event="INFO"
 declare -Ar log_levels=( [DEBUG]=0 [d]=0 [db]=0 [debug]=0 [INFO]=1 [i]=1 [info]=1 [WARNING]=2 [w]=2 [warn]=2 [ERROR]=3 [e]=3 [e]=3)
@@ -129,6 +133,8 @@ declare -r  reset_colour='\033[0m'
 
 
 function cleanup_and_exit() {
+
+    rm -f "$working_files_directory/$lock_file_name"
 
     # Unset git environment variables
     unset GIT_AUTHOR_DATE
@@ -178,7 +184,7 @@ function log() {
 
     # Common preamble
     # log_preamble="$(date +'%F;%T');$script_name;$script_version"
-    log_preamble="$(date +'%F;%T');"
+    log_preamble="$(date +'%F;%T')"
 
     # Print to stdout
     echo -e "$colour$log_preamble;$log_level_event;$reset_colour$1"
@@ -597,6 +603,30 @@ function set_file_paths_after_parsing_user_args(){
         echo "tfs_latest_changeset_xml:     $tfs_latest_changeset_xml"
         exit_status=0
         cleanup_and_exit
+
+    fi
+
+}
+
+
+function check_or_set_lock_file() {
+
+    lock_file_path="$working_files_directory/$lock_file_name"
+
+    # Check if the lock file exists
+    if [ -f "$lock_file_path" ]; then
+
+        # Just exit the script for now
+        # TODO: Add a timeout / ps check to see if the lock file is still valid
+        old_lock_file_time="$(cat "$lock_file_path")"
+        current_time="$(date +%s)"
+        lock_file_age="$((current_time - old_lock_file_time))"
+        error "Lock file exists at $lock_file_path, and is $lock_file_age seconds old. Another instance of the script may already be running."
+
+    else
+
+        # Create the lock file, and write the current time to it so we know how old it is
+        date +%s > "$lock_file_path"
 
     fi
 
@@ -1118,7 +1148,7 @@ function get_tfs_repo_history() {
     else
 
         info "Batch size is $changelist_batch_size"
-        info "Migrating up to changeset $tfs_history_end_changeset in this batch"
+        info "Converting up to changeset $tfs_history_end_changeset in this batch"
         # Set the exit status to 3, so that the calling script knows that more changesets remain to be migrated, and can call the script to run the next batch sooner than the next interval
         exit_status=3
 
@@ -1284,8 +1314,9 @@ function map_tfs_owners_to_git_authors() {
                 email_domain="domain.com"
             fi
 
-            # Assemble the email address
-            email_address="${user}@${email_domain}"
+            # Assemble the email address, lowercased
+            email_address="$user@$email_domain"
+            email_address="${email_address,,}"
 
             # Format the name
             # Replace any periods in the username with spaces
@@ -1728,6 +1759,8 @@ function main() {
     set_file_paths_before_parsing_user_args
     parse_and_validate_user_args "$@"
     set_file_paths_after_parsing_user_args
+
+    check_or_set_lock_file
 
     # Verify that all needed dependencies are installed and in $PATH
     check_dependencies
