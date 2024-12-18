@@ -2,79 +2,6 @@
 
 # TODO:
 
-    # Git config --global
-        # Find a way to not need global config, so it doesn't mess with other git operations on the host
-
-    # Handle cases of deleting / renaming files
-
-        # Just delete all files every time, and let git diff sort it out?
-
-        # List of actions that could happen in a changeset
-            # https://learn.microsoft.com/en-us/rest/api/azure/devops/tfvc/changesets/get-changeset-changes?view=azure-devops-rest-7.1&tabs=HTTP#versioncontrolchangetype
-
-        # Gather the frequency of each of these actions
-            # cat .repos/dev.azure.com/marc-leblanc/.tfs-to-git/repo-history.json | jq | grep "change-type" | sed 's/\ //g' | sort | uniq -c
-
-        # Organize the 16 actions into CRUD
-            # VersionControlChangeType
-                # all
-                # branch
-                # encoding
-                # merge
-                # none
-                # property
-                # rollback
-                # undelete
-                # targetRename
-            # Delete - jq query the changeset items, find the delete items, delete them
-                # delete
-                    # sourceRename
-            # Update - ??
-            # Create - tf get handles these already
-                # add
-                # rename
-                    # Test if git sees this as a rename with the git add ., if we delete the original file name
-            # Read - No change required for this script?
-            # Ignore
-                # lock
-                # edit
-
-        # Frequency in the first 30 changesets of the test repo
-            #   24 "@change-type":"add",
-            #    5 "@change-type":"delete",
-            #    2 "@change-type":"delete,sourcerename",
-            #    2 "@change-type":"rename",
-
-
-        # Loop through the changeset items
-        # Verify if each of the actions is taken
-        # Create CRUD routines in the conversion function
-        # Map the metadata action to the routines: delete, update
-        # Parse the actions items in the metadata, set flags for which CRUD routines need to happen, and execute the delete before the tf get
-        # Verify the state matches?
-
-
-        # Validation
-            # Create these changes in the test repo
-            # Read the items[].["@change-type"] from the changeset metadata
-            # Rename the log file to start with a fresh file
-            # Run a full execution start to finish
-                # Log level info
-            # Capture the tf and git output
-            # Verify the correct action was taken
-                # Compare for when the change set metadata says delete
-                # Check if the git command removes the file
-
-    # Refactor create_migration_tfs_workspace
-        # Test tf workfold separately from tf workspace
-
-        # Improve validation of existing tfs_workfold
-            # Remove each matching line from $tfs_workfold
-            # Then strip out all non-letter characters
-            # Then count the lines remaining
-            # If there are more than 0 lines remaining
-            # Then there are extra work folder mappings in the workspace
-
     # Add progress and summary stats
         # Progress stats, per changeset
             # Download sizes, times, and speed (mbps)
@@ -89,27 +16,12 @@
             # Repo size
             # Cleanup and exit function prints summary stats
 
-    # Extract project name from $/{project}/ repo source path
-        # Use it in the URL
-
-    # Test connectivity to endpoints before beginning
-        # If Git remote is provided, test its connection during input validation (ie. git can access credentials, start a session, network connectivity, etc.)
-
-    # In the calling script, take list of repos as an arg in the code hosts yaml file
-        # Default "all"
-        # Parallelize by running on multiple repos at a time
+    # Branch mode
+        # Would take a bunch more time, so we'd need to validate that with customers before spending that time on it
 
     # Sort out credential handling
         # Git PAT if provided
         # Environment variables
-
-    # Rewrite in Go / Python?
-        # Use a high performance git library
-        # Go may make it easier to get integrated into the product, so then we get the added benefits of perms syncing, etc.
-
-    # Branch mode
-        # Would take a bunch more time, so we'd need to validate that with customers before spending that time on it
-        # Might name the git repo after the collection name
 
     # How will customers want to use this script?
         # This isn't like Git, where you could just provide an Org (collection), and it could query the API to get a list of all repos, and clone them
@@ -135,21 +47,17 @@
                         # Either just one Git org, or one org per Collection
                         # Then have the script use the collection / source path as the repo name
 
-    # Git repo naming
-        # src serve-git names the repo as the file path below the root directory of where src serve git is traversing from
-            # ex. if running src serve-git from /sourcegraph/tfs-to-git/.repos, and there are repos below this directory at orgs/repos, then the repo's name is org/repo, but there's no code host FQDN/org path for src serve-git, so add an extra directory level in the repo path mimic a code host FQDN in Sourcegraph
-        # Assume we'll be running src serve-git from /sourcegraph/tfs-to-git/.repos
-        # repositoryPathPattern isn't available for src serve-git
-        # Should name the repo server/collection-source-path by default, especially if cloning $/ root
-        # Therefore
-            # Default repo names: collection-source-path
-            # Assume that we don't need to use a user-provied --git-remote in the file path
-            # replace '/' with '-' for collection and $/source/path
-            # File tree:
-                # ./repos/server/collection-source-path/
-                    # .git (repo)
-                    # .tfs-to-git/ (script files)
-                    # Working copy of the files
+    # Git config --global
+        # Find a way to not need global config, so it doesn't mess with other git operations on the host
+
+    # In the calling script, take list of repos as an arg in the code hosts yaml file
+        # Default "all"
+        # Parallelize by running on multiple repos at a time
+
+    # Rewrite in Go / Python?
+        # Use a high performance git library
+        # Go may make it easier to get integrated into the product, so then we get the added benefits of perms syncing, etc.
+
 
 # Declare global variables
 # declare -a is an array
@@ -160,7 +68,9 @@ declare     author_email_domain
 declare -A  author_mapping_array
 declare     author_name_mapping_file
 declare -i  changelist_batch_size=100
+declare     changeset_id_prefix="ADO"
 declare -i  continue_from_changeset
+declare     count_of_changesets_in_batch
 declare -i  exit_status=0
 declare -A  external_dependencies_array
 declare     force_replace_git_target_directory=false
@@ -178,6 +88,7 @@ declare     git_target_directory
 declare     git_target_directory_root
 declare     initial_pwd
 declare -i  last_commit_changeset
+declare     last_commit_execution_time
 declare     log_level_config="INFO"
 declare     log_level_event="INFO"
 declare -Ar log_levels=( [DEBUG]=0 [d]=0 [db]=0 [debug]=0 [INFO]=1 [i]=1 [info]=1 [WARNING]=2 [w]=2 [warn]=2 [ERROR]=3 [e]=3 [e]=3)
@@ -186,6 +97,7 @@ declare     missing_authors_file
 declare     missing_dependencies
 declare     newer_changesets_to_migrate=true
 declare -r  script_name="tfs-to-git"
+declare     script_start_time=$(date +%s)
 declare     log_file="./$script_name.log"
 declare -r  script_version="v0.1"
 declare     tfs_access_token
@@ -194,6 +106,7 @@ declare     tfs_changeset_id_array
 declare     tfs_collection="DefaultCollection"
 declare     tfs_creds_provided
 declare -i  tfs_history_start_changeset=1
+declare     tfs_latest_changeset_id
 declare     tfs_latest_changeset_json
 declare     tfs_latest_changeset_xml
 declare     tfs_project
@@ -264,7 +177,8 @@ function log() {
     fi
 
     # Common preamble
-    log_preamble="$(date +'%F;%T');$script_name;$script_version"
+    # log_preamble="$(date +'%F;%T');$script_name;$script_version"
+    log_preamble="$(date +'%F;%T');"
 
     # Print to stdout
     echo -e "$colour$log_preamble;$log_level_event;$reset_colour$1"
@@ -839,7 +753,7 @@ function get_latest_changeset_previously_committed() {
     last_commit_subject_line=$(git log -1 --pretty=%s)
 
     # If the subject line matches the regex, with the capture group
-    last_commit_changeset_regex="^\[ADO-([0-9]+)\]"
+    last_commit_changeset_regex="^\[$changeset_id_prefix-([0-9]+)\]"
     if [[ $last_commit_subject_line =~ $last_commit_changeset_regex ]]
     then
 
@@ -857,6 +771,10 @@ function get_latest_changeset_previously_committed() {
 function git_config_global() {
 
     # Configure Git, to avoid issues and noise
+    # Does not seem to show in the git log as the committer, which is good
+    # But it does appear on the host
+    # git config get --global user.email
+    # tfs-to-git@sourcegraph.com
     git config --global init.defaultBranch "$git_default_branch"
     git config --global user.name "$git_default_committer_name"
     git config --global user.email "$git_default_committer_email"
@@ -1219,7 +1137,7 @@ function get_tfs_repo_history() {
     # Delete any existing history file from previous executions
     rm -f "$tfs_repo_history_file_xml"
 
-    # Download the TFS history in xml format, and output to the $tfs_repo_history_file_xml
+    # Download the TFS history for this batch, in xml format, and output to the $tfs_repo_history_file_xml
     if ! tf history \
         "$tfs_source_repo_path" \
         -collection:"$tfs_server/$tfs_collection" \
@@ -1239,27 +1157,27 @@ function get_tfs_repo_history() {
 function convert_tfs_repo_history_file_from_xml_to_json() {
 
     # Add an extra <changeset></changeset> object to the tfs_repo_history_file_xml file, so that xml2json will always convert it to a JSON array rather than a single object
-    sed -i 's/^<\/history>$/<changeset><\/changeset><\/history>/' $tfs_repo_history_file_xml
+    sed -i 's/^<\/history>$/<changeset><\/changeset><\/history>/' "$tfs_repo_history_file_xml"
 
     # Convert tf's XML file to JSON format to be much easier to work with
     if ! xml2json -t xml2json --strip_text -o "$tfs_repo_history_file_json" "$tfs_repo_history_file_xml"
     then
-        error "Unable to convert history to JSON. See file $tfs_repo_history_file_xml"
+        error "Unable to convert history from XML to JSON. See XML file at $tfs_repo_history_file_xml and JSON file $tfs_repo_history_file_json"
     fi
 
     # Remove the null line created by xml2json for our sed line insert
-    sed -i 's/}, null]}/}]}/' $tfs_repo_history_file_json
+    sed -i 's/}, null]}/}]}/' "$tfs_repo_history_file_json"
 
     # Count and print the number of changesets in the TFS repo's history
-    count_of_changesets=$(jq '.history.changeset | length' "$tfs_repo_history_file_json")
-    info "Changesets received in this batch: $count_of_changesets"
+    count_of_changesets_in_batch=$(jq '.history.changeset | length' "$tfs_repo_history_file_json")
+    info "Changesets received in this batch: $count_of_changesets_in_batch"
 
     # tf provides the XML in reverse chronological order, so we need to reverse it into chronological order for Git
     # Store this in the array that the big commit conversion loop goes through
     if ! mapfile -t tfs_changeset_id_array < <(jq -r '[.history.changeset[]["@id"]] | reverse[]' "$tfs_repo_history_file_json" 2> /dev/null)
     then
 
-        error "Unable to load the changeset sequence in reverse. See file $tfs_repo_history_file_json"
+        error "Unable to load the changeset sequence in reverse from the JSON file. See XML file at $tfs_repo_history_file_xml and JSON file $tfs_repo_history_file_json"
 
     fi
 
@@ -1451,7 +1369,7 @@ function convert_tfs_changesets_to_git_commits() {
         first_commit=true
     fi
 
-    changesets_remaining=$count_of_changesets
+    changesets_remaining=$count_of_changesets_in_batch
 
     debug "tfs_changeset_id_array:"
     debug "${tfs_changeset_id_array[@]}"
@@ -1459,6 +1377,8 @@ function convert_tfs_changesets_to_git_commits() {
     # Iterate through $tfs_changeset_id_array
     for current_changeset_id in "${tfs_changeset_id_array[@]}"
     do
+
+        commit_start_time=$(date +%s)
 
         # Read changeset information from the JSON history file
         if ! current_changeset_info=$(jq -c '.history.changeset[] | select (.["@id"] == "'"$current_changeset_id"'") | [.["@owner"], .["@committer"], .["@date"], .comment]' "$tfs_repo_history_file_json")
@@ -1470,11 +1390,12 @@ function convert_tfs_changesets_to_git_commits() {
 
         # Extract fields from the changeset info
         current_changeset_owner=$(      echo "$current_changeset_info" | jq -r '.[0]')
-        current_changeset_owner_backslash_escaped="${current_changeset_owner//\\/\\\\}"
         # Could support separate authors and committers, but would have to double this through the author mapping
         # current_changeset_committer=$(  echo "$current_changeset_info" | jq -r '.[1]')
         current_changeset_date=$(       echo "$current_changeset_info" | jq -r '.[2]')
         current_changeset_message=$(    echo "$current_changeset_info" | jq -r '.[3]')
+
+        current_changeset_owner_backslash_escaped="${current_changeset_owner//\\/\\\\}"
 
         # Get the author's name and email address in Git format
         git_author="${author_mapping_array["$current_changeset_owner"]}"
@@ -1491,7 +1412,19 @@ function convert_tfs_changesets_to_git_commits() {
         ((changesets_remaining--))
 
         # Print commit details to the user to show progress
-        info "Downloading changeset $current_changeset_id from TFS [$changesets_remaining remaining]:"
+        info "Downloading changeset $changeset_id_prefix-$current_changeset_id from server"
+
+        info "[Batch size: $changelist_batch_size; Changesets in this batch: $count_of_changesets_in_batch; Repo HEAD: $tfs_latest_changeset_id]"
+
+        changesets_completed_so_far_this_batch=$((count_of_changesets_in_batch - changesets_remaining))
+        batch_completion_percentage=$((changesets_completed_so_far_this_batch * 100 / count_of_changesets_in_batch))
+
+        info "[Changesets completed so far this batch: $changesets_completed_so_far_this_batch; Changesets remaining in this batch: $changesets_remaining; Batch completion: $batch_completion_percentage%]"
+
+        current_time=$(date +%s)
+        info "Script running time: $((current_time - script_start_time )) seconds; Previous commit execution time: $last_commit_execution_time seconds"
+
+        info "Changeset $changeset_id_prefix-$current_changeset_id history data:"
         info "Author:  $current_changeset_owner_backslash_escaped -> $git_author"
         info "Date:    $current_changeset_date"
         info "Message: $current_changeset_message"
@@ -1553,7 +1486,7 @@ function convert_tfs_changesets_to_git_commits() {
 
 
         # Print the new working directory to show where this command is getting run from
-        info "Committing changeset $current_changeset_id to git repo"
+        info "Committing changeset $changeset_id_prefix-$current_changeset_id to git repo"
         info "git output:"
 
         # Stage files to commit
@@ -1567,10 +1500,13 @@ function convert_tfs_changesets_to_git_commits() {
         if ! git commit \
             --all \
             --allow-empty \
-            --message="[ADO-$current_changeset_id] $current_changeset_message"
+            --message="[$changeset_id_prefix-$current_changeset_id] $current_changeset_message"
         then
             error "Error while committing changes. See git output"
         fi
+
+        commit_finish_time=$(date +%s)
+        last_commit_execution_time=$((commit_finish_time - commit_start_time))
 
     done
 
