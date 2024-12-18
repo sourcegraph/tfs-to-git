@@ -603,19 +603,23 @@ function set_file_paths_after_parsing_user_args(){
 
     # Cobble together the git_target_directory from the provided and/or default args
     # Sanitize for use in file paths
+
     # Server
     tfs_server="${tfs_server%/}"                        # Remove the trailing slash if provided. Applies to both usages of tfs_server, connection and file path
     tfs_server_for_path="${tfs_server##*://}"           # Remove everything before and including '://'
-    tfs_server_for_path="${tfs_server_for_path/:/-}"    # Replace any remaining : (ex. port numbers) with a -
-    tfs_server_for_path="${tfs_server_for_path/\//-}"   # Replace any / (ex. virtual directories) with a -
+    tfs_server_for_path="${tfs_server_for_path/:*/}"    # Remove any remaining : (ex. port numbers), and anything after
+    # tfs_server_for_path="${tfs_server_for_path/\//-}"   # Replace any / (ex. virtual directories) with a -
 
     # Collection
-    tfs_collection_for_path="${tfs_collection//\//-}"   # Replace all '/' with '-'
+    tfs_collection_for_path="${tfs_collection//\//-}"   # Replace all '/' with '-' # But, Collection shouldn't have any slashes in the name
+
+    # Project
+    # Doesn't need to be in the directory path, as the Project is also the top level of the Source path
 
     # Source path
+    tfs_source_repo_path_for_url="${tfs_source_repo_path//\$\/}"            # Remove all '$/'
     tfs_source_repo_path_for_path="${tfs_source_repo_path//\$\/}"           # Remove all '$/'
     tfs_source_repo_path_for_path="${tfs_source_repo_path_for_path//\//-}"  # Replace all remaining '/' with '-'
-    tfs_source_repo_path_for_url="${tfs_source_repo_path//\$\/}"            # Remove all '$/'
 
     # Assemble the git target directory path
     git_target_directory="$initial_pwd/$git_target_directory_root/$tfs_server_for_path/$tfs_collection_for_path"
