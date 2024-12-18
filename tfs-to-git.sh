@@ -390,6 +390,9 @@ function print_usage_instructions_and_exit() {
         All errors terminate the script
         Default: INFO
 
+    -o, --output-directory
+        Base directory, ex. src serve-git
+
     -p, --project
         TFS project name
 
@@ -528,6 +531,11 @@ function parse_and_validate_user_args() {
                 shift
             fi
             ;;
+        -o | --output-directory)
+            git_target_directory_root="$2"
+            shift
+            shift
+            ;;
         -p | --project)
             tfs_project="$2"
             shift
@@ -598,7 +606,10 @@ function set_file_paths_before_parsing_user_args(){
 
 function set_file_paths_after_parsing_user_args(){
 
-    git_target_directory_root="/sourcegraph/repos"
+    # If the user didn't provide an output directory, default to the current directory
+    if [ -z "$git_target_directory_root" ]; then
+        git_target_directory_root="$initial_pwd/repos"
+    fi
     working_files_directory=".tfs-to-git"
 
     # Cobble together the git_target_directory from the provided and/or default args
@@ -622,7 +633,7 @@ function set_file_paths_after_parsing_user_args(){
     tfs_source_repo_path_for_path="${tfs_source_repo_path_for_path//\//-}"  # Replace all remaining '/' with '-'
 
     # Assemble the git target directory path
-    git_target_directory="$initial_pwd/$git_target_directory_root/$tfs_server_for_path/$tfs_collection_for_path"
+    git_target_directory="$git_target_directory_root/$tfs_server_for_path/$tfs_collection_for_path"
 
     # Set the name of the TFS workspace to use for migration based on user inputs
     # to avoid conflicting workspace names when processing multiple branches of the same collection in parallel
