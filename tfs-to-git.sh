@@ -628,6 +628,8 @@ function check_or_set_lock_file() {
         # Create the lock file, and write the current time to it so we know how old it is
         date +%s > "$lock_file_path"
 
+        debug "Created lock file at $lock_file_path"
+
     fi
 
 }
