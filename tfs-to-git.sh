@@ -651,7 +651,7 @@ function set_file_paths_after_parsing_user_args(){
     if [[ -n $tfs_source_repo_path_for_path ]]
     then
 
-        git_target_directory+="-$tfs_source_repo_path_for_path"
+        git_target_directory+="/$tfs_source_repo_path_for_path"
         tfs_workspace+="-$tfs_source_repo_path_for_path"
 
     fi
@@ -1290,7 +1290,7 @@ function map_tfs_owners_to_git_authors() {
         debug "changeset_owner_usernames_from_tfs_history: "
         debug "${changeset_owner_usernames_from_tfs_history[@]}"
 
-        error "Unable to get a list of unique authors' usernames from $tfs_repo_history_file_json"
+        warning "Unable to get a list of unique authors' usernames from $tfs_repo_history_file_json"
 
     fi
 
