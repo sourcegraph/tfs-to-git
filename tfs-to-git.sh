@@ -598,7 +598,7 @@ function set_file_paths_before_parsing_user_args(){
 
 function set_file_paths_after_parsing_user_args(){
 
-    git_target_directory_root=".repos"
+    git_target_directory_root="/sourcegraph/repos"
     working_files_directory=".tfs-to-git"
 
     # Cobble together the git_target_directory from the provided and/or default args
