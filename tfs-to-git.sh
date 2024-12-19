@@ -664,9 +664,9 @@ function check_or_set_lock_file() {
     # date +%s > "$lock_file_path"
 
     # Create the lock file, and write the current PID to it so we can check if the script is still running
-    current_pid="$($BASHPID)"
+    echo $$>"$lock_file_path"
 
-    echo "$current_pid" > "$lock_file_path"
+    current_pid="$(cat "$lock_file_path")"
 
     debug "Created lock file at $lock_file_path, with PID $current_pid"
 
