@@ -9,7 +9,7 @@
 ## Known Issues
 1. Big one: TEE (Team Explorer Everywhere, Microsoft's Java (cross-platform) CLI for TFS) requires an access token with Code:Full permissions, on a user account with a Project Contributor role on all projects within the same Collection / Org / TFVC repo
 - Workaround: Use git tfs like everyone else, even though it requires Windows, it can work with a username and password from an account with Code:Read permissions and a Project Reader role
-2. TEE's tf get command doesn't delete files from the local workspace that were deleted in TFS, so they're left on disk, to be committed in the Git repo, though this behaviour didn't seem to be super consistent
+2. TEE's tf get command doesn't delete files from the local workspace that were deleted in TFS, so they're left on disk, to be committed in the Git repo, though this behaviour didn't seem to be super consistent
 
 ## How to Migrate TFVC Repos to Git
 

@@ -2,7 +2,19 @@
 
 # TODO:
 
-    # Lock file and cronjob
+    # Cron
+        # Sort out file paths, ex. logs and working files, when run by cron
+        # Should be in the repo's .tfs-to-git working directory?
+
+    # Lock file
+        # Record PID in lock file
+        # If lock file is found, check ps for PID
+        # If PID is running, exit
+        # If PID is not running, remove lock file
+
+    # Take a starting changeset arg
+        # If this is a new clone, then start at the arg changeset
+        # Or the next changeset after the specified one
 
     # Add progress and summary stats
         # Progress stats, per changeset
@@ -83,7 +95,7 @@ declare     git_default_branch="main"
 declare     git_default_committer_email="tfs-to-git@sourcegraph.com"
 declare     git_default_committer_name="TFS-to-Git"
 declare     git_force_push=false
-declare     git_ignore_content=".tf* \n.tfs-to-git"
+declare     git_ignore_content=".tf* \n.tfs-to-git" # Should only ignore lop level .tf* files created by TEE, and the top level .tfs-to-git working directory
 declare     git_ignore_file
 declare     git_remote_url
 declare     git_target_directory
@@ -103,7 +115,7 @@ declare     missing_dependencies
 declare     newer_changesets_to_migrate=true
 declare -r  script_name="tfs-to-git"
 declare     script_start_time=$(date +%s)
-declare     log_file="./$script_name.log"
+declare     log_file="/var/log/tfs-to-git/$script_name.log"
 declare -r  script_version="v0.1"
 declare     tfs_access_token
 declare     tfs_access_token_arg
@@ -626,18 +638,30 @@ function check_or_set_lock_file() {
     # Check if the lock file exists
     if [ -f "$lock_file_path" ]; then
 
-        # Just exit the script for now
-        # TODO: Add a timeout / ps check to see if the lock file is still valid
-        old_lock_file_time="$(cat "$lock_file_path")"
-        current_time="$(date +%s)"
-        lock_file_age="$((current_time - old_lock_file_time))"
         lock_file_hit="true"
-        error "Lock file exists at $lock_file_path, and is $lock_file_age seconds old. Another instance of the script may already be running."
+
+        lock_file_last_modified="$(date -r "$lock_file_path" +%s)"
+        lock_file_age="$(( $(date +%s) - lock_file_last_modified ))"
+
+        # Get the PID of the previous run of the script which created the lock file
+        lock_file_pid="$(cat "$lock_file_path")"
+
+        # Check if the PID is still running
+        if ps -p "$lock_file_pid" > /dev/null; then
+
+            # The process is still running
+            error "Lock file exists at $lock_file_path, and is $lock_file_age seconds old. Another instance of the script may already be running."
+
+        fi
 
     else
 
         # Create the lock file, and write the current time to it so we know how old it is
-        date +%s > "$lock_file_path"
+        # date +%s > "$lock_file_path"
+
+        # Create the lock file, and write the current PID to it so we can check if the script is still running
+        current_pid="$($$)"
+        echo "$current_pid" > "$lock_file_path"
 
         debug "Created lock file at $lock_file_path"
 
