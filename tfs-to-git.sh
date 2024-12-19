@@ -650,7 +650,7 @@ function check_or_set_lock_file() {
             # The process is still running
             lock_file_hit="true"
 
-            running_process_at_pid="$(ps --pid "$lock_file_pid")"
+            running_process_at_pid="$(ps -f --pid "$lock_file_pid")"
 
             error "Lock file exists at $lock_file_path, and is $lock_file_age seconds old, with PID $lock_file_pid. Another instance of the script may already be running: $running_process_at_pid"
 
