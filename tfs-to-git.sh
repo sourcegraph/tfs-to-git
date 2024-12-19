@@ -645,7 +645,7 @@ function check_or_set_lock_file() {
         lock_file_pid="$(cat "$lock_file_path")"
 
         # Check if the PID is still running
-        if ps --pid "$lock_file_pid" 2>&1 /dev/null; then
+        if ps --pid "$lock_file_pid" > /dev/null; then
 
             # The process is still running
             lock_file_hit="true"
