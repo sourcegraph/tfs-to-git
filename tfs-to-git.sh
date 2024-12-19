@@ -645,13 +645,18 @@ function check_or_set_lock_file() {
         lock_file_pid="$(cat "$lock_file_path")"
 
         # Check if the PID is still running
-        if ps -p "$lock_file_pid" > /dev/null; then
+        if ps --pid "$lock_file_pid" 2>&1 /dev/null; then
 
             # The process is still running
             lock_file_hit="true"
-            error "Lock file exists at $lock_file_path, and is $lock_file_age seconds old. Another instance of the script may already be running."
+
+            running_process_at_pid="$(ps --pid "$lock_file_pid")"
+
+            error "Lock file exists at $lock_file_path, and is $lock_file_age seconds old, with PID $lock_file_pid. Another instance of the script may already be running: $running_process_at_pid"
 
         else
+
+            info "Lock file exists at $lock_file_path, but the process with PID $lock_file_pid is not running. Deleting lock file and running the script."
 
             # The process is not running, so we can safely delete the lock file and continue
             rm "$lock_file_path"
