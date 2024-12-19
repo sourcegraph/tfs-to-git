@@ -638,8 +638,6 @@ function check_or_set_lock_file() {
     # Check if the lock file exists
     if [ -f "$lock_file_path" ]; then
 
-        lock_file_hit="true"
-
         lock_file_last_modified="$(date -r "$lock_file_path" +%s)"
         lock_file_age="$(( $(date +%s) - lock_file_last_modified ))"
 
@@ -650,22 +648,26 @@ function check_or_set_lock_file() {
         if ps -p "$lock_file_pid" > /dev/null; then
 
             # The process is still running
+            lock_file_hit="true"
             error "Lock file exists at $lock_file_path, and is $lock_file_age seconds old. Another instance of the script may already be running."
+
+        else
+
+            # The process is not running, so we can safely delete the lock file and continue
+            rm "$lock_file_path"
 
         fi
 
-    else
-
-        # Create the lock file, and write the current time to it so we know how old it is
-        # date +%s > "$lock_file_path"
-
-        # Create the lock file, and write the current PID to it so we can check if the script is still running
-        current_pid="$($$)"
-        echo "$current_pid" > "$lock_file_path"
-
-        debug "Created lock file at $lock_file_path"
-
     fi
+
+    # Create the lock file, and write the current time to it so we know how old it is
+    # date +%s > "$lock_file_path"
+
+    # Create the lock file, and write the current PID to it so we can check if the script is still running
+    current_pid="$($$)"
+    echo "$current_pid" > "$lock_file_path"
+
+    debug "Created lock file at $lock_file_path, with PID $current_pid"
 
 }
 
