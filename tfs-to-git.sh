@@ -2,6 +2,15 @@
 
 # TODO:
 
+    # Take a starting date / days of history / starting changeset arg
+        # To give users a useful conversion to start with,
+        # Then we can convert history in parallel in the background,
+        # And swap repos later
+
+    # Branch mode
+        # Find a way to do the same as git-tfs, to identify branches, and convert them as well
+        # Or, just convert each branch into its own repo for now
+
     # Changeset retry
         # Problem
             # Batch size is a blind guess at changeset ID numbers
@@ -10,6 +19,9 @@
             # Especially for less frequently used repos
             # Where the batch size isn't large enough to get any commits
             # In the changeset ID range of current + batch size
+            # Could pull whole history, and find the largest difference between changeset IDs,
+            # Which would give the smallest batch size which would work
+            # But, would this be useful
         # Need to get the next changeset ID after the current
             # Then retry the batch size from that changeset ID
         # Solution
@@ -17,11 +29,6 @@
             # Find a way to start from the current commit +1,
             # and request the next batch of [batch size] changesets,
             # Not just take a shot in the dark for current + batch size
-
-    # Take a starting date / days of history / starting changeset arg
-        # To give users a useful conversion to start with,
-        # Then we can convert history in parallel in the background,
-        # And swap repos later
 
     # Add progress and summary stats
         # Progress stats, per changeset
@@ -36,10 +43,6 @@
             # Total execution time
             # Repo size
             # Cleanup and exit function prints summary stats
-
-    # Branch mode
-        # Find a way to do the same as git-tfs, to identify branches, and convert them as well
-        # Or, just convert each branch into its own repo for now
 
     # Performance
         # Find which parts of the script are the slowest
