@@ -1864,7 +1864,7 @@ exec > >(tee -a "$log_file") 2>&1
 
 # Trap if user hits CTRL-C during script
 #trap "exit_status=1; cleanup_and_exit" SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
-trap 'echo trap && cleanup_and_exit 1' SIGHUP SIGINT SIGTERM SIGQUIT
+trap 'echo trap && cleanup_and_exit 1' SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
 #trap cleanup_and_exit ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
 #trap "echo wtf" EXIT
 
