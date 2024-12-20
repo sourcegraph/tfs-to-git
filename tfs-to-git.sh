@@ -409,6 +409,12 @@ function parse_and_validate_user_args() {
     while [[ "$#" -gt 0 ]]
     do
         case $1 in
+        -l | --log-level)
+            log_level_config="$2"
+            debug "--log-level $log_level_config"
+            shift
+            shift
+            ;;
         -a | --authors | --authors-mapping-file)
             author_name_mapping_file="$2"
             debug "--authors $author_name_mapping_file"
@@ -472,12 +478,6 @@ function parse_and_validate_user_args() {
         -i | --git-ignore-file)
             git_ignore_file="$2"
             debug "--git-ignore-file $git_ignore_file"
-            shift
-            shift
-            ;;
-        -l | --log-level)
-            log_level_config="$2"
-            debug "--log-level $log_level_config"
             shift
             shift
             ;;
