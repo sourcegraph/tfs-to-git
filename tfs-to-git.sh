@@ -268,7 +268,8 @@ function cleanup_and_exit() {
 # Trap if user hits CTRL-C during script
 #trap "exit_status=1; cleanup_and_exit" SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
 #trap 'exit_status=1; cleanup_and_exit' ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
-trap cleanup_and_exit ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
+#trap cleanup_and_exit ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
+trap 'echo "wtf"' ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
 
 
 function pushd_popd_cd_error() {
