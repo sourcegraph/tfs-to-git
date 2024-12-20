@@ -82,7 +82,18 @@ declare     log_file="/var/log/sg/$script_name.log"
 # Redirect stdout to tee
 # Then redirect stderr to stdout
 # Exec seems to result in this script running itself, with tee as a sub process
+# `- -bash
+#     `- bash /sourcegraph/tfs-to-git/tfs-to-git.sh
+#         `- bash /sourcegraph/tfs-to-git/tfs-to-git.sh
+#             `- tee -a /var/log/sg/tfs-to-git.log
+#         `- java -classpath :/sourcegraph/bin/TEE-CLC-14.139.0/...
 exec > >(tee -a "$log_file") 2>&1
+
+# Trap if user hits CTRL-C during script
+#trap "exit_status=1; cleanup_and_exit" SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
+#trap 'exit_status=1; cleanup_and_exit' ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
+#trap cleanup_and_exit ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
+trap 'echo "wtf"' EXIT
 
 
 # Declare global variables
@@ -267,13 +278,6 @@ function cleanup_and_exit() {
     exit "$exit_status"
 
 }
-
-
-# Trap if user hits CTRL-C during script
-#trap "exit_status=1; cleanup_and_exit" SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
-#trap 'exit_status=1; cleanup_and_exit' ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
-#trap cleanup_and_exit ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
-trap 'echo "wtf"' EXIT
 
 
 function pushd_popd_cd_error() {
