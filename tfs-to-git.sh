@@ -1851,6 +1851,11 @@ function main() {
 
 }
 
+# Trap if user hits CTRL-C during script
+# Trap seems to segfault
+# ^CSegmentation fault (core dumped)
+trap "exit_status=1; cleanup_and_exit" ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
+
 # Print to both stdout and log file
 # Redirect stdout to tee
 # Then redirect stderr to stdout
@@ -1861,12 +1866,6 @@ function main() {
 #             `- tee -a /var/log/sg/tfs-to-git.log
 #         `- java -classpath :/sourcegraph/bin/TEE-CLC-14.139.0/...
 exec > >(tee -a "$log_file") 2>&1
-
-# Trap if user hits CTRL-C during script
-#trap "exit_status=1; cleanup_and_exit" SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
-trap 'echo trap' SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
-#trap cleanup_and_exit ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
-#trap "echo wtf" EXIT
 
 # Execute the main function, passing through all the args passed into the script
 main "$@"
