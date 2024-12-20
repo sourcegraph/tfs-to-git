@@ -74,6 +74,17 @@
         # Go may make it easier to get integrated into the product, so then we get the added benefits of perms syncing, etc.
 
 
+# Configure logging output
+declare -r  script_name="tfs-to-git"
+declare     log_file="/var/log/sg/$script_name.log"
+
+# Print to both stdout and log file
+# Redirect stdout to tee
+# Then redirect stderr to stdout
+# Exec seems to result in this script running itself, with tee as a sub process
+exec > >(tee -a "$log_file") 2>&1
+
+
 # Declare global variables
 # declare -a is an array
 # declare -A is an associative array
@@ -114,8 +125,6 @@ declare -a  missing_authors
 declare     missing_authors_file
 declare     missing_dependencies
 declare     newer_changesets_to_migrate=true
-declare -r  script_name="tfs-to-git"
-declare     log_file="/var/log/sg/$script_name.log"
 declare     script_start_time=$(date +%s)
 declare -r  script_version="v0.1"
 declare     tfs_access_token
@@ -145,11 +154,6 @@ declare -r  info_blue_colour='\033[0;34m'
 declare -r  warning_orange_colour='\033[0;35m'
 declare -r  error_red_colour='\033[0;31m'
 declare -r  reset_colour='\033[0m'
-
-
-# Print to both stdout and log file
-exec > >(tee -a "$log_file") 2>&1
-
 
 function log() {
 
@@ -269,7 +273,7 @@ function cleanup_and_exit() {
 #trap "exit_status=1; cleanup_and_exit" SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
 #trap 'exit_status=1; cleanup_and_exit' ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
 #trap cleanup_and_exit ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
-trap 'echo "wtf"' ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
+trap 'echo "wtf"' EXIT
 
 
 function pushd_popd_cd_error() {
