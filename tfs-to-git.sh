@@ -630,7 +630,7 @@ function set_file_paths_after_parsing_user_args(){
 
     # git_target_directory turns out to be 70 characters on its own, need to make it shorter
     #git_target_directory="$git_target_directory_root/$tfs_server_for_path/$tfs_collection_for_path"
-    git_target_directory="/sourcegraph/tfs/"
+    git_target_directory="/sourcegraph/tfs"
 
     # Set the name of the TFS workspace to use for migration based on user inputs
     # to avoid conflicting workspace names when processing multiple independent root branches of the same collection in parallel
@@ -1035,7 +1035,7 @@ function create_migration_tfs_workspace() {
     # Saw the same even after rm -rf ./repos
     tfs_workfold=$(tf workfold -workspace:"$tfs_workspace" 2>&1 )
 
-    debug "tfs_workfold received from $tfs_workspace workspace:\n$tfs_workfold"
+    # debug "tfs_workfold received from $tfs_workspace workspace:\n$tfs_workfold"
 
     # If $tfs_workfold contains
     # The workspace 'test' could not be found.
