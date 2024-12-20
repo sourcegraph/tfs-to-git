@@ -115,7 +115,7 @@ declare     missing_dependencies
 declare     newer_changesets_to_migrate=true
 declare -r  script_name="tfs-to-git"
 declare     script_start_time=$(date +%s)
-declare     log_file="/var/log/tfs-to-git/$script_name.log"
+declare     log_file="/var/log/sg/$script_name.log"
 declare -r  script_version="v0.1"
 declare     tfs_access_token
 declare     tfs_access_token_arg
