@@ -105,7 +105,7 @@ declare     git_target_directory_root
 declare     initial_pwd
 declare -i  last_commit_changeset
 declare     last_commit_execution_time
-declare     lock_file_hit
+declare     lock_file_hit="false"
 declare     lock_file_name="tfs-to-git.lock"
 declare     lock_file_path
 declare     log_level_config="INFO"
@@ -235,7 +235,7 @@ function cleanup_and_exit() {
     # debug "Process tree: $(pstree -spa $$)"
 
     # If we hit the lock file, leave it there
-    if [[ -n "$lock_file_hit" ]]; then
+    if [[ "$lock_file_hit" == "true" ]]; then
         info "Lock file hit, not removing lock file"
     else
         info "Removing lock file"
