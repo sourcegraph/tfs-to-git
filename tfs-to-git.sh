@@ -630,7 +630,7 @@ function set_file_paths_after_parsing_user_args(){
 
     # git_target_directory turns out to be 70 characters on its own, need to make it shorter
     #git_target_directory="$git_target_directory_root/$tfs_server_for_path/$tfs_collection_for_path"
-    git_target_directory="/sourcegraph/tfs/$tfs_source_repo_path_for_path"
+    git_target_directory="/sourcegraph/tfs/"
 
     # Set the name of the TFS workspace to use for migration based on user inputs
     # to avoid conflicting workspace names when processing multiple independent root branches of the same collection in parallel
