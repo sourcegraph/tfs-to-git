@@ -251,7 +251,10 @@ function cleanup_and_exit() {
 
     # Ctrl-C kills child processes, including
     # exec > >(tee -a "$log_file") 2>&1
-    echo "Exiting script" | tee -a "$log_file"
+    echo "Exiting script"
+    echo "stack trace:"
+    i=0; while caller $i; do ((i++)); done
+
 
     # If we hit the lock file, leave it there
     if [[ -n "$lock_file_hit" ]]; then
@@ -316,7 +319,7 @@ function print_usage_instructions_and_exit() {
         Default: DefaultCollection
 
     -d, --dependencies, --check-dependencies
-        Check depdencies and outputs versions, then exits
+        Check dependencies, output versions, then exit
 
     -fp, --git-push-force, --git-force-push
         Enables git push --force to overwrite the remote git repo if it already
