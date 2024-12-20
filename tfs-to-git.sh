@@ -256,15 +256,14 @@ function cleanup_and_exit() {
 
     # Ctrl-C kills child processes, including
     # exec > >(tee -a "$log_file") 2>&1
-    echo "Exiting script"
-    echo "Proces tree:"
-    pstree -spa $$
+    info "Exiting script"
+    debug "Process tree: $(pstree -spa $$)"
 
     # If we hit the lock file, leave it there
     if [[ -n "$lock_file_hit" ]]; then
-        echo "Lock file hit, not removing lock file" | tee -a "$log_file"
+        info "Lock file hit, not removing lock file"
     else
-        echo "Removing lock file" | tee -a "$log_file"
+        info "Removing lock file"
         rm -f "$working_files_directory/$lock_file_name"
     fi
 
@@ -278,7 +277,7 @@ function cleanup_and_exit() {
     unset GIT_COMMITTER_NAME
 
     # Use whatever was last set as the exit status
-    echo "Exit status: $exit_status" | tee -a "$log_file"
+    debug "Exit status: $exit_status"
     exit "$exit_status"
 
 }
