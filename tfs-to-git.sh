@@ -144,41 +144,6 @@ declare -r  info_yellow_colour='\033[0;33m'
 declare -r  warning_orange_colour='\033[0;35m'
 declare -r  reset_colour='\033[0m'
 
-
-function cleanup_and_exit() {
-
-    echo "Hello from cleanup_and_exit"
-
-    debug "Exiting script"
-
-    # If we hit the lock file, leave it there
-    if [[ -n "$lock_file_hit" ]]; then
-        debug "Lock file hit, not removing lock file"
-    else
-        debug "Removing lock file"
-        rm -f "$working_files_directory/$lock_file_name"
-    fi
-
-    # Unset git environment variables
-    # Although these should only be set in the scope of this script / bash process
-    unset GIT_AUTHOR_DATE
-    unset GIT_AUTHOR_EMAIL
-    unset GIT_AUTHOR_NAME
-    unset GIT_COMMITTER_DATE
-    unset GIT_COMMITTER_EMAIL
-    unset GIT_COMMITTER_NAME
-
-    # Use whatever was last set as the exit status
-    debug "Exit status: $exit_status"
-    exit "$exit_status"
-
-}
-
-# Trap if user hits CTRL-C during script
-#trap "exit_status=1; cleanup_and_exit" SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
-#trap 'exit_status=1; cleanup_and_exit' ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
-trap cleanup_and_exit ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
-
 function log() {
 
     # Set colour for stdout based on log level
@@ -258,6 +223,41 @@ function error() {
     cleanup_and_exit
 
 }
+
+
+function cleanup_and_exit() {
+
+    echo "Hello from cleanup_and_exit"
+
+    debug "Exiting script"
+
+    # If we hit the lock file, leave it there
+    if [[ -n "$lock_file_hit" ]]; then
+        debug "Lock file hit, not removing lock file"
+    else
+        debug "Removing lock file"
+        rm -f "$working_files_directory/$lock_file_name"
+    fi
+
+    # Unset git environment variables
+    # Although these should only be set in the scope of this script / bash process
+    unset GIT_AUTHOR_DATE
+    unset GIT_AUTHOR_EMAIL
+    unset GIT_AUTHOR_NAME
+    unset GIT_COMMITTER_DATE
+    unset GIT_COMMITTER_EMAIL
+    unset GIT_COMMITTER_NAME
+
+    # Use whatever was last set as the exit status
+    debug "Exit status: $exit_status"
+    exit "$exit_status"
+
+}
+
+# Trap if user hits CTRL-C during script
+#trap "exit_status=1; cleanup_and_exit" SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
+#trap 'exit_status=1; cleanup_and_exit' ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
+trap cleanup_and_exit ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
 
 
 function pushd_popd_cd_error() {
