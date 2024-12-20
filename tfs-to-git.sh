@@ -105,7 +105,7 @@ declare     git_target_directory_root
 declare     initial_pwd
 declare -i  last_commit_changeset
 declare     last_commit_execution_time
-declare     lock_file_hit="false"
+declare     lock_file_hit
 declare     lock_file_name="tfs-to-git.lock"
 declare     lock_file_path
 declare     log_level_config="INFO"
@@ -229,13 +229,18 @@ function error() {
 
 function cleanup_and_exit() {
 
+    if [[ -n "$1" ]]; then
+        exit_status="$1"
+    fi
+
+
     # Ctrl-C kills child processes, including
     # exec > >(tee -a "$log_file") 2>&1
     info "Exiting script"
     # debug "Process tree: $(pstree -spa $$)"
 
     # If we hit the lock file, leave it there
-    if [[ "$lock_file_hit" == "true" ]]; then
+    if [[ -n "$lock_file_hit" ]]; then
         info "Lock file hit, not removing lock file"
     else
         info "Removing lock file"
@@ -712,7 +717,7 @@ function check_dependencies() {
         else
 
             # If it does exist, and if the user called the script with -d flag, print the version
-            if [ "$#" -gt 0 ]
+            if [ -n "$1" ]
             then
 
                 # Get and run the version check command
@@ -1858,9 +1863,6 @@ function main() {
 
 }
 
-
-# Exit the script if it tries to use a variable before it's defined
-set -u
 
 # Trap if user hits CTRL-C during script
 # Trap seems to segfault
