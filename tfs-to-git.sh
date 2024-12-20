@@ -74,29 +74,6 @@
         # Go may make it easier to get integrated into the product, so then we get the added benefits of perms syncing, etc.
 
 
-# Configure logging output
-declare -r  script_name="tfs-to-git"
-declare     log_file="/var/log/sg/$script_name.log"
-
-# Print to both stdout and log file
-# Redirect stdout to tee
-# Then redirect stderr to stdout
-# Exec seems to result in this script running itself, with tee as a sub process
-# `- -bash
-#     `- bash /sourcegraph/tfs-to-git/tfs-to-git.sh
-#         `- bash /sourcegraph/tfs-to-git/tfs-to-git.sh
-#             `- tee -a /var/log/sg/tfs-to-git.log
-#         `- java -classpath :/sourcegraph/bin/TEE-CLC-14.139.0/...
-stty -echoctl # hide ^C
-exec > >(tee -a "$log_file") 2>&1
-
-# Trap if user hits CTRL-C during script
-#trap "exit_status=1; cleanup_and_exit" SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
-trap 'cleanup_and_exit 1' EXIT INT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
-#trap cleanup_and_exit ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
-#trap "echo wtf" EXIT
-
-
 # Declare global variables
 # declare -a is an array
 # declare -A is an associative array
@@ -137,6 +114,8 @@ declare -a  missing_authors
 declare     missing_authors_file
 declare     missing_dependencies
 declare     newer_changesets_to_migrate=true
+declare -r  script_name="tfs-to-git"
+declare     log_file="/var/log/sg/$script_name.log"
 declare     script_start_time=$(date +%s)
 declare -r  script_version="v0.1"
 declare     tfs_access_token
@@ -1871,6 +1850,23 @@ function main() {
     cleanup_and_exit "$exit_status"
 
 }
+
+# Print to both stdout and log file
+# Redirect stdout to tee
+# Then redirect stderr to stdout
+# Exec seems to result in this script running itself, with tee as a sub process
+# `- -bash
+#     `- bash /sourcegraph/tfs-to-git/tfs-to-git.sh
+#         `- bash /sourcegraph/tfs-to-git/tfs-to-git.sh
+#             `- tee -a /var/log/sg/tfs-to-git.log
+#         `- java -classpath :/sourcegraph/bin/TEE-CLC-14.139.0/...
+exec > >(tee -a "$log_file") 2>&1
+
+# Trap if user hits CTRL-C during script
+#trap "exit_status=1; cleanup_and_exit" SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
+trap 'cleanup_and_exit 1' EXIT INT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
+#trap cleanup_and_exit ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
+#trap "echo wtf" EXIT
 
 # Execute the main function, passing through all the args passed into the script
 main "$@"
