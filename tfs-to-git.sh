@@ -5,6 +5,7 @@
     # Cron
         # Sort out file paths, ex. logs and working files, when run by cron
         # Should be in the repo's .tfs-to-git working directory?
+        # Sort out why the script is not writing to the log when run by cron
 
     # Lock file
         # Record PID in lock file
@@ -114,8 +115,8 @@ declare     missing_authors_file
 declare     missing_dependencies
 declare     newer_changesets_to_migrate=true
 declare -r  script_name="tfs-to-git"
-declare     script_start_time=$(date +%s)
 declare     log_file="/var/log/sg/$script_name.log"
+declare     script_start_time=$(date +%s)
 declare -r  script_version="v0.1"
 declare     tfs_access_token
 declare     tfs_access_token_arg
@@ -139,10 +140,16 @@ declare     validate_paths=false
 declare     working_files_directory
 
 # Colours for formatting stdout
-declare -r  error_red_colour='\033[0;31m'
-declare -r  info_yellow_colour='\033[0;33m'
+declare -r  debug_yellow_colour='\033[0;33m'
+declare -r  info_blue_colour='\033[0;34m'
 declare -r  warning_orange_colour='\033[0;35m'
+declare -r  error_red_colour='\033[0;31m'
 declare -r  reset_colour='\033[0m'
+
+
+# Print to both stdout and log file
+exec > >(tee -a "$log_file") 2>&1
+
 
 function log() {
 
@@ -150,11 +157,11 @@ function log() {
     case $2 in
         "DEBUG")
             log_level_event="DEBUG"
-            colour=$info_yellow_colour
+            colour=$debug_yellow_colour
             ;;
         "INFO")
             log_level_event="INFO"
-            colour=$info_yellow_colour
+            colour=$info_blue_colour
             ;;
         "WARNING")
             log_level_event="WARNING"
@@ -256,6 +263,7 @@ function cleanup_and_exit() {
     exit "$exit_status"
 
 }
+
 
 # Trap if user hits CTRL-C during script
 #trap "exit_status=1; cleanup_and_exit" SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
@@ -1852,12 +1860,5 @@ function main() {
 
 }
 
-# Print to both shell and log_file
-# test -t 1 && { exec $0 "$@" 2>&1 | tee -a "$log_file"; exit; }
-
-# Log to both stdout and log file
-exec > >(tee -a "$log_file") 2>&1
-
-
-# Execute the main function
+# Execute the main function, passing through all the args passed into the script
 main "$@"
