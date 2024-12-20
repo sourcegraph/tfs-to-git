@@ -87,11 +87,12 @@ declare     log_file="/var/log/sg/$script_name.log"
 #         `- bash /sourcegraph/tfs-to-git/tfs-to-git.sh
 #             `- tee -a /var/log/sg/tfs-to-git.log
 #         `- java -classpath :/sourcegraph/bin/TEE-CLC-14.139.0/...
+stty -echoctl # hide ^C
 exec > >(tee -a "$log_file") 2>&1
 
 # Trap if user hits CTRL-C during script
 #trap "exit_status=1; cleanup_and_exit" SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
-trap 'exit_status=1; cleanup_and_exit' EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
+trap 'exit_status=1; cleanup_and_exit' EXIT INT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
 #trap cleanup_and_exit ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
 #trap "echo wtf" EXIT
 
