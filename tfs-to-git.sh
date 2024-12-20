@@ -82,6 +82,7 @@
 declare     author_email_domain
 declare -A  author_mapping_array
 declare     author_name_mapping_file
+declare     called_by_cron
 declare -i  changelist_batch_size=100
 declare     changeset_id_prefix="ADO"
 declare -i  continue_from_changeset
@@ -236,7 +237,7 @@ function cleanup_and_exit() {
     # Ctrl-C kills child processes, including
     # exec > >(tee -a "$log_file") 2>&1
     info "Exiting script"
-    debug "Process tree: $(pstree -spa $$)"
+    # debug "Process tree: $(pstree -spa $$)"
 
     # If we hit the lock file, leave it there
     if [[ -n "$lock_file_hit" ]]; then
@@ -254,6 +255,10 @@ function cleanup_and_exit() {
     unset GIT_COMMITTER_DATE
     unset GIT_COMMITTER_EMAIL
     unset GIT_COMMITTER_NAME
+
+    if [[ $called_by_cron ]]; then
+        debug "Script called by cron"
+    fi
 
     # Use whatever was last set as the exit status
     debug "Exit status: $exit_status"
@@ -1813,6 +1818,13 @@ function main() {
     parse_and_validate_user_args "$@"
     set_file_paths_after_parsing_user_args
 
+    # Check if run by cron
+    process_tree="$(pstree -spa $$)"
+    if [[ "$process_tree" == *"-cron,"* ]]; then
+        called_by_cron="true"
+        debug "Script called by cron"
+    fi
+
     check_or_set_lock_file
 
     # Verify that all needed dependencies are installed and in $PATH
@@ -1850,6 +1862,10 @@ function main() {
     cleanup_and_exit "$exit_status"
 
 }
+
+
+# Exit the script if it tries to use a variable before it's defined
+set -u
 
 # Trap if user hits CTRL-C during script
 # Trap seems to segfault
