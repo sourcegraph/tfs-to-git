@@ -224,8 +224,11 @@ function error() {
 
 }
 
-
 function cleanup_and_exit() {
+
+
+    # Print to both shell and log_file
+
 
     echo "Hello from cleanup_and_exit"
 
@@ -1850,7 +1853,11 @@ function main() {
 }
 
 # Print to both shell and log_file
-test -t 1 && { exec $0 "$@" 2>&1 | tee -a "$log_file"; exit; }
+# test -t 1 && { exec $0 "$@" 2>&1 | tee -a "$log_file"; exit; }
+
+# Log to both stdout and log file
+exec > >(tee -a "$log_file") 2>&1
+
 
 # Execute the main function
 main "$@"
