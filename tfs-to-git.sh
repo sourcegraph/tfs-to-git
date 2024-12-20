@@ -91,7 +91,7 @@ exec > >(tee -a "$log_file") 2>&1
 
 # Trap if user hits CTRL-C during script
 #trap "exit_status=1; cleanup_and_exit" SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
-trap 'exit_status=1; cleanup_and_exit' ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
+trap 'exit_status=1; cleanup_and_exit' EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
 #trap cleanup_and_exit ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
 #trap "echo wtf" EXIT
 
@@ -249,8 +249,9 @@ function error() {
 function cleanup_and_exit() {
 
 
-    # Print to both shell and log_file
-    echo "Hello from cleanup_and_exit"
+    # Ctrl-C kills child processes
+    # Need to restart tee to print and log
+    exec > >(tee -a "$log_file") 2>&1
 
     debug "Exiting script"
 
