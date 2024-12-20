@@ -229,11 +229,6 @@ function error() {
 
 function cleanup_and_exit() {
 
-    if [[ -n "$1" ]]; then
-        exit_status="$1"
-    fi
-
-
     # Ctrl-C kills child processes, including
     # exec > >(tee -a "$log_file") 2>&1
     info "Exiting script"
@@ -717,7 +712,7 @@ function check_dependencies() {
         else
 
             # If it does exist, and if the user called the script with -d flag, print the version
-            if [ -n "$1" ]
+            if [ "$#" -gt 0 ]
             then
 
                 # Get and run the version check command
