@@ -2,12 +2,6 @@
 
 # TODO:
 
-    # Cron
-        # Issue is tf is missing in $PATH
-        # Sort out file paths, ex. logs and working files, when run by cron
-        # Should be in the repo's .tfs-to-git working directory?
-        # Sort out why the script is not writing to the log when run by cron
-
     # Take a starting changeset arg
         # If this is a new clone, then start at the arg changeset
         # Or the next changeset after the specified one
@@ -229,14 +223,10 @@ function error() {
 
 function cleanup_and_exit() {
 
-    if [[ -n "$1" ]]; then
-        exit_status="$1"
-    fi
-
-
     # Ctrl-C kills child processes, including
     # exec > >(tee -a "$log_file") 2>&1
     info "Exiting script"
+
     # debug "Process tree: $(pstree -spa $$)"
 
     # If we hit the lock file, leave it there
@@ -287,11 +277,11 @@ function print_usage_instructions_and_exit() {
 
     Arguments:
 
-    -a, --authors
+    -a, --authors, --authors-mapping-file
         JSON file to map TFS owner names to git author tags
         Default: ./authors.json
 
-    -ad, --author-email-domain
+    -ad, --authors-email-domain
         If a user is missing from the authors file, then use:
         Email: user@this_domain
         Name: DOMAIN\user
@@ -349,7 +339,7 @@ function print_usage_instructions_and_exit() {
     -o, --output-directory
         Base directory, ex. src serve-git
 
-    -p, --project
+    -p, --project, --tfs-project
         TFS project name
 
     -r, --remote, --git-remote
@@ -419,45 +409,54 @@ function parse_and_validate_user_args() {
     while [[ "$#" -gt 0 ]]
     do
         case $1 in
-        -a | --authors)
+        -a | --authors | --authors-mapping-file)
             author_name_mapping_file="$2"
+            debug "--authors $author_name_mapping_file"
             shift
             shift
             ;;
-        -ad | --author-email-domain)
+        -ad | --authors-email-domain)
             author_email_domain="$2"
+            debug "--authors-email-domain $author_email_domain"
             shift
             shift
             ;;
         -b | --batch-size)
             changelist_batch_size="$2"
+            debug "--batch-size $changelist_batch_size"
             shift
             shift
             ;;
         -c | -collection | --collection | --tfs-collection)
             tfs_collection="$2"
+            debug "--tfs-collection $tfs_collection"
             shift
             shift
             ;;
         --get-missing-authors)
             get_missing_authors=true
+            debug "--get-missing-authors $get_missing_authors"
             shift
             ;;
         -d | --dependencies | --check-dependencies)
+            debug "--check-dependencies true"
             check_dependencies "arg"
             shift
             shift
             ;;
         -fp | --git-push-force | --git-force-push)
             git_force_push=true
+            debug "--git-force-push $git_force_push"
             shift
             ;;
         -fr | --force-replace)
             force_replace_git_target_directory=true
+            debug "--force-replace $force_replace_git_target_directory"
             shift
             ;;
         -g | -gpat | --git-access-token )
             git_access_token_arg="$2"
+            debug "--git-access-token set"
             shift
             shift
             ;;
@@ -466,68 +465,72 @@ function parse_and_validate_user_args() {
             ;;
         --history | --history-start-changeset)
             tfs_history_start_changeset="$2"
+            debug "--history-start-changeset $tfs_history_start_changeset"
             shift
             shift
             ;;
         -i | --git-ignore-file)
             git_ignore_file="$2"
+            debug "--git-ignore-file $git_ignore_file"
             shift
             shift
             ;;
         -l | --log-level)
-            # TODO: Fix this
-            # If there's no next parameter, or if it begins with -
-            if [[ -z "$2" ]] || [[ "$2" == "-*" ]]
-            then
-                log_level_config="DEBUG"
-                shift
-            else
-                log_level_config="$2"
-                shift
-                shift
-            fi
+            log_level_config="$2"
+            debug "--log-level $log_level_config"
+            shift
+            shift
             ;;
         -o | --output-directory)
             git_target_directory_root="$2"
+            debug "--output-directory $git_target_directory_root"
             shift
             shift
             ;;
-        -p | --project)
+        -p | --project | --tfs-project)
             tfs_project="$2"
+            debug "--tfs-project $tfs_project"
             shift
             shift
             ;;
         -r | --remote | --git-remote)
             git_remote_url="$2"
+            debug "--git-remote $git_remote_url"
             shift
             shift
             ;;
         --repo-size)
             get_repo_size_arg=true
+            debug "--repo-size $get_repo_size_arg"
             shift
             ;;
         -s | --source | --tfs-source-path)
             tfs_source_repo_path="$2"
+            debug "--tfs-source-path $tfs_source_repo_path"
             shift
             shift
             ;;
         -t | --tfs | --tfs-server)
             tfs_server=$2
+            debug "--tfs-server $tfs_server"
             shift
             shift
             ;;
         --tfs-token | --tfs-access-token)
             tfs_access_token_arg=$2
+            debug "--tfs-access-token set"
             shift
             shift
             ;;
         --tfs-user | --tfs-username)
             tfs_username_arg=$2
+            debug "--tfs-username $tfs_username_arg"
             shift
             shift
             ;;
         --validate-paths)
             validate_paths=true
+            debug "--validate-paths $validate_paths"
             shift
             ;;
         -v | --version)
@@ -591,7 +594,7 @@ function set_file_paths_after_parsing_user_args(){
     git_target_directory="$git_target_directory_root/$tfs_server_for_path/$tfs_collection_for_path"
 
     # Set the name of the TFS workspace to use for migration based on user inputs
-    # to avoid conflicting workspace names when processing multiple branches of the same collection in parallel
+    # to avoid conflicting workspace names when processing multiple independent root branches of the same collection in parallel
     # $tfs_workspace naming conflicts
         # Could be running many parallel executions for different paths / branches in the same collection
         # Could be running many parallel executions for different collections on the same server
@@ -1308,7 +1311,7 @@ function map_tfs_owners_to_git_authors() {
         # Log the user's DOMAIN\user to the missing owners file
         # Name: DOMAIN\user
         # Email: user@arg-domain
-        # Use the email domain from --author-email-domain
+        # Use the email domain from --authors-email-domain
 
     # Iterate through the list of owners from the TFS repo history file
     for changeset_owner_to_map_from_tfs_history in "${changeset_owner_usernames_from_tfs_history[@]}"
@@ -1460,8 +1463,8 @@ function convert_tfs_changesets_to_git_commits() {
 
     changesets_remaining=$count_of_changesets_in_batch
 
-    debug "tfs_changeset_id_array:"
-    debug "${tfs_changeset_id_array[@]}"
+    # debug "tfs_changeset_id_array:"
+    # debug "${tfs_changeset_id_array[*]}"
 
     # Iterate through $tfs_changeset_id_array
     for current_changeset_id in "${tfs_changeset_id_array[@]}"
@@ -1822,7 +1825,7 @@ function main() {
     process_tree="$(pstree -spa $$)"
     if [[ "$process_tree" == *"-cron,"* ]]; then
         called_by_cron="true"
-        debug "Script called by cron"
+        debug "Script called by cron, running from $initial_pwd"
     fi
 
     check_or_set_lock_file
@@ -1859,7 +1862,7 @@ function main() {
 
     # Cleanup
     exit_status=0
-    cleanup_and_exit "$exit_status"
+    cleanup_and_exit
 
 }
 
@@ -1867,7 +1870,7 @@ function main() {
 # Trap if user hits CTRL-C during script
 # Trap seems to segfault
 # ^CSegmentation fault (core dumped)
-trap "exit_status=1; cleanup_and_exit" ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
+# trap "exit_status=1; cleanup_and_exit" ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
 
 # Print to both stdout and log file
 # Redirect stdout to tee
