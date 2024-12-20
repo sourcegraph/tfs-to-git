@@ -203,7 +203,7 @@ function log() {
     log_preamble="$(date +'%F;%T')"
 
     # Print to stdout
-    echo -e "$colour$log_preamble;$log_level_event;$reset_colour$1"
+    echo -e "$colour$log_preamble;$log_level_event;$reset_colour$1" | tee -a "$log_file"
 
     # # Print to log file
     # echo "$log_preamble;$log_level_event;$1" &>> "$log_file"
@@ -249,11 +249,9 @@ function error() {
 function cleanup_and_exit() {
 
 
-    # Ctrl-C kills child processes
-    # Need to restart tee to print and log
-    exec > >(tee -a "$log_file") 2>&1
-
-    debug "Exiting script"
+    # Ctrl-C kills child processes, including
+    # exec > >(tee -a "$log_file") 2>&1
+    info "Exiting script"
 
     # If we hit the lock file, leave it there
     if [[ -n "$lock_file_hit" ]]; then
