@@ -147,6 +147,8 @@ declare -r  reset_colour='\033[0m'
 
 function cleanup_and_exit() {
 
+    echo "Hello from cleanup_and_exit"
+
     debug "Exiting script"
 
     # If we hit the lock file, leave it there
