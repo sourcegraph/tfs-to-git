@@ -619,7 +619,18 @@ function set_file_paths_after_parsing_user_args(){
     tfs_source_repo_path_for_path="${tfs_source_repo_path_for_path//\//-}"  # Replace all remaining '/' with '-'
 
     # Assemble the git target directory path
-    git_target_directory="$git_target_directory_root/$tfs_server_for_path/$tfs_collection_for_path"
+    # Need to create a shorter path
+    # The longest file path name is 227 characters (so far)
+    # tf doesn't support file paths longer than 260 characters
+    # com.microsoft.tfs.core.clients.versioncontrol.exceptions.PathTooLongException
+    # ExceptionMessage="The specified path, file name, or both are too long.
+    # The fully qualified file name must be less than 260 characters,
+    # and the directory name must be less than 248 characters."
+    # This is not a limitation of Ubuntu, but of the tf CLI
+
+    # git_target_directory turns out to be 70 characters on its own, need to make it shorter
+    #git_target_directory="$git_target_directory_root/$tfs_server_for_path/$tfs_collection_for_path"
+    git_target_directory="/sourcegraph/tfs/$tfs_source_repo_path_for_path"
 
     # Set the name of the TFS workspace to use for migration based on user inputs
     # to avoid conflicting workspace names when processing multiple independent root branches of the same collection in parallel
