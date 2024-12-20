@@ -3,15 +3,10 @@
 # TODO:
 
     # Cron
+        # Issue is tf is missing in $PATH
         # Sort out file paths, ex. logs and working files, when run by cron
         # Should be in the repo's .tfs-to-git working directory?
         # Sort out why the script is not writing to the log when run by cron
-
-    # Lock file
-        # Record PID in lock file
-        # If lock file is found, check ps for PID
-        # If PID is running, exit
-        # If PID is not running, remove lock file
 
     # Take a starting changeset arg
         # If this is a new clone, then start at the arg changeset
@@ -146,6 +141,11 @@ declare -r  info_blue_colour='\033[0;34m'
 declare -r  warning_orange_colour='\033[0;35m'
 declare -r  error_red_colour='\033[0;31m'
 declare -r  reset_colour='\033[0m'
+
+# Export environment variables
+# Add tf to path, for cron
+export PATH="/sourcegraph/bin/TEE-CLC-14.139.0:$PATH"
+
 
 function log() {
 
