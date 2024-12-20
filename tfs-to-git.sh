@@ -158,6 +158,7 @@ function cleanup_and_exit() {
     fi
 
     # Unset git environment variables
+    # Although these should only be set in the scope of this script / bash process
     unset GIT_AUTHOR_DATE
     unset GIT_AUTHOR_EMAIL
     unset GIT_AUTHOR_NAME
@@ -1403,7 +1404,6 @@ function map_tfs_owners_to_git_authors() {
         for missing_author in "${missing_authors[@]}"
         do
 
-#                    "DEDALUS\alain.battistini": "Firstname Lastname <email@domain.com>",
             echo "    \"$missing_author\": \"Firstname Lastname <email@domain.com>\"," >> "$missing_authors_file"
 
         done
@@ -1844,7 +1844,8 @@ function main() {
 }
 
 # Trap if user hits CTRL-C during script
-trap "exit_status=1; cleanup_and_exit" SIGHUP SIGINT SIGQUIT SIGPIPE SIGTERM
+#trap "exit_status=1; cleanup_and_exit" SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
+trap "{ exit_status=1; cleanup_and_exit; }" SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
 
 # Print to both shell and log_file
 test -t 1 && { exec $0 "$@" 2>&1 | tee -a "$log_file"; exit; }
