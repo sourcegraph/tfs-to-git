@@ -251,7 +251,7 @@ function cleanup_and_exit() {
 
     # Ctrl-C kills child processes, including
     # exec > >(tee -a "$log_file") 2>&1
-    info "Exiting script"
+    echo "Exiting script" | tee -a "$log_file"
 
     # If we hit the lock file, leave it there
     if [[ -n "$lock_file_hit" ]]; then
