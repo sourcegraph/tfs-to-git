@@ -1845,7 +1845,7 @@ function main() {
 
 # Trap if user hits CTRL-C during script
 #trap "exit_status=1; cleanup_and_exit" SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
-trap "{ exit_status=1; cleanup_and_exit; }" SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
+trap "{ exit_status=1; cleanup_and_exit; }" ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
 
 # Print to both shell and log_file
 test -t 1 && { exec $0 "$@" 2>&1 | tee -a "$log_file"; exit; }
