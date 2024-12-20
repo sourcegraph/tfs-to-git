@@ -203,7 +203,7 @@ function log() {
     log_preamble="$(date +'%F;%T')"
 
     # Print to stdout
-    echo -e "$colour$log_preamble;$log_level_event;$reset_colour$1" | tee -a "$log_file"
+    echo -e "$colour$log_preamble;$log_level_event;$reset_colour$1"
 
     # # Print to log file
     # echo "$log_preamble;$log_level_event;$1" &>> "$log_file"
