@@ -2,9 +2,26 @@
 
 # TODO:
 
-    # Take a starting changeset arg
-        # If this is a new clone, then start at the arg changeset
-        # Or the next changeset after the specified one
+    # Changeset retry
+        # Problem
+            # Batch size is a blind guess at changeset ID numbers
+            # If the batch size is too small
+            # Then it's possible the commit history has enough of a gap
+            # Especially for less frequently used repos
+            # Where the batch size isn't large enough to get any commits
+            # In the changeset ID range of current + batch size
+        # Need to get the next changeset ID after the current
+            # Then retry the batch size from that changeset ID
+        # Solution
+            # Keep pulling new commits until the batch size is filled
+            # Find a way to start from the current commit +1,
+            # and request the next batch of [batch size] changesets,
+            # Not just take a shot in the dark for current + batch size
+
+    # Take a starting date / days of history / starting changeset arg
+        # To give users a useful conversion to start with,
+        # Then we can convert history in parallel in the background,
+        # And swap repos later
 
     # Add progress and summary stats
         # Progress stats, per changeset
@@ -21,7 +38,15 @@
             # Cleanup and exit function prints summary stats
 
     # Branch mode
-        # Would take a bunch more time, so we'd need to validate that with customers before spending that time on it
+        # Find a way to do the same as git-tfs, to identify branches, and convert them as well
+        # Or, just convert each branch into its own repo for now
+
+    # Performance
+        # Find which parts of the script are the slowest
+        # Run them in parallel
+        # Download commits in parallel,
+        # With x download threads
+        # Then commit them in sequence?
 
     # Sort out credential handling
         # Git PAT if provided
@@ -968,7 +993,7 @@ function tfs_login() {
     elif [[ -n "$tfs_username" ]] || [[ -n "$tfs_access_token" ]]
     then
 
-        warning "Missing TFS username or password. Credentials provided: $tfs_creds_provided"
+        warning "Missing TFS username or password."
 
     fi
 
@@ -1117,7 +1142,7 @@ function get_repo_size() {
 
     info "Getting the repo size, this will tf get -force the latest revision, without intermediate changesets, but won't commit these files to the git repo, so this will break your converted repo history the next time the script is run; you should run the script again with -fr to force replace the git repo after this finishes"
 
-    # Get the lastest version of all files in the workspace
+    # Get the latest version of all files in the workspace
     if ! tf get . \
             -version:T \
             -force \
@@ -1627,7 +1652,7 @@ function git_login_and_push() {
     else
 
         info "Pushing to git remote"
-        git push --all --force $git_remote_url
+        git push --all --force "$git_remote_url"
 
     fi
 
