@@ -92,7 +92,7 @@ exec > >(tee -a "$log_file") 2>&1
 
 # Trap if user hits CTRL-C during script
 #trap "exit_status=1; cleanup_and_exit" SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
-trap 'exit_status=1; cleanup_and_exit' EXIT INT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
+trap 'cleanup_and_exit 1' EXIT INT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
 #trap cleanup_and_exit ERR EXIT SIGHUP SIGINT SIGPIPE SIGTERM SIGQUIT
 #trap "echo wtf" EXIT
 
@@ -249,13 +249,16 @@ function error() {
 
 function cleanup_and_exit() {
 
+    if [[ -n "$1" ]]; then
+        exit_status="$1"
+    fi
+
 
     # Ctrl-C kills child processes, including
     # exec > >(tee -a "$log_file") 2>&1
     echo "Exiting script"
-    echo "stack trace:"
-    i=0; while caller $i; do ((i++)); done
-
+    echo "Proces tree:"
+    pstree -spa $$
 
     # If we hit the lock file, leave it there
     if [[ -n "$lock_file_hit" ]]; then
@@ -1866,7 +1869,7 @@ function main() {
 
     # Cleanup
     exit_status=0
-    cleanup_and_exit
+    cleanup_and_exit "$exit_status"
 
 }
 
