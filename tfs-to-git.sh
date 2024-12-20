@@ -656,7 +656,7 @@ function check_or_set_lock_file() {
 
         else
 
-            info "Lock file exists at $lock_file_path, but the process with PID $lock_file_pid is not running. Deleting lock file and running the script."
+            info "Lock file exists at $lock_file_path, and is $lock_file_age seconds old, with PID $lock_file_pid, but the process is not running. Deleting lock file and running the script."
 
             # The process is not running, so we can safely delete the lock file and continue
             rm "$lock_file_path"
