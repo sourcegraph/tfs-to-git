@@ -2,6 +2,28 @@
 
 # TODO:
 
+    # Shorten directory path
+        # The tf CLI refuses to write a file at a fully qualified file path longer than 260 characters
+        # Approaches
+            # A
+                # Clone into a working directory, ex. /sg/r/medtfs01/SIC-Main
+                # Rsync the .git directory into src-serve-git/UI-name/.git
+                # This costs double the storage for the .git directory, but it's only 600 MB when the checked out copy is 3 GB (only a 20% storage duplication cost)
+            # B
+                # Symbolic links?
+                    # https://stackoverflow.com/a/75065638
+            # C
+                # Shorten the destination path
+                    # To continue cloning directly into the src serve-git root directory
+                    # With the path which we need the users to see in Sourcegraph
+                    # Being the same path we clone to on disk
+                    # Already shortened the repo parent path, but it doesn't save us enough characters
+                # Problem
+                    # We get at most 34 characters (so far) to work with, for a path to show users in the UI
+                    # This is not enough for the user experience
+
+    # Manually collect an Authors file for current committers from the last few months
+
     # Take a starting date / days of history / starting changeset arg
         # To give users a useful conversion to start with,
         # Then we can convert history in parallel in the background,
@@ -118,7 +140,6 @@ declare     git_ignore_content=".tf* \n.tfs-to-git" # Should only ignore lop lev
 declare     git_ignore_file
 declare     git_remote_url
 declare     git_target_directory
-declare     git_target_directory_root
 declare     initial_pwd
 declare -i  last_commit_changeset
 declare     last_commit_execution_time
@@ -166,7 +187,7 @@ declare -r  reset_colour='\033[0m'
 
 # Export environment variables
 # Add tf to path, for cron
-export PATH="/sourcegraph/bin/TEE-CLC-14.139.0:$PATH"
+export PATH="/sg/bin/TEE-CLC-14.139.0:$PATH"
 
 
 function log() {
@@ -365,7 +386,8 @@ function print_usage_instructions_and_exit() {
         Default: INFO
 
     -o, --output-directory
-        Base directory, ex. src serve-git
+        Directory to clone the git repo into
+        Ex. /sg/r/server/project-repo
 
     -p, --project, --tfs-project
         TFS project name
@@ -510,8 +532,8 @@ function parse_and_validate_user_args() {
             shift
             ;;
         -o | --output-directory)
-            git_target_directory_root="$2"
-            debug "--output-directory $git_target_directory_root"
+            git_target_directory="$2"
+            debug "--output-directory $git_target_directory"
             shift
             shift
             ;;
@@ -593,11 +615,6 @@ function set_file_paths_before_parsing_user_args(){
 
 function set_file_paths_after_parsing_user_args(){
 
-    # If the user didn't provide an output directory, default to the current directory
-    if [ -z "$git_target_directory_root" ]; then
-        git_target_directory_root="$initial_pwd/repos"
-    fi
-
     # Cobble together the git_target_directory from the provided and/or default args
     # Sanitize for use in file paths
 
@@ -626,11 +643,12 @@ function set_file_paths_after_parsing_user_args(){
     # ExceptionMessage="The specified path, file name, or both are too long.
     # The fully qualified file name must be less than 260 characters,
     # and the directory name must be less than 248 characters."
-    # This is not a limitation of Ubuntu, but of the tf CLI
+    # This is a limitation of the tf CLI
 
-    # git_target_directory turns out to be 70 characters on its own, need to make it shorter
-    #git_target_directory="$git_target_directory_root/$tfs_server_for_path/$tfs_collection_for_path"
-    git_target_directory="/sourcegraph/tfs"
+    # If the user didn't provide an output directory, default to the current directory
+    if [ -z "$git_target_directory" ]; then
+        git_target_directory="$initial_pwd/repos/$tfs_server_for_path/$tfs_collection_for_path"
+    fi
 
     # Set the name of the TFS workspace to use for migration based on user inputs
     # to avoid conflicting workspace names when processing multiple independent root branches of the same collection in parallel
@@ -648,7 +666,7 @@ function set_file_paths_after_parsing_user_args(){
     if [[ -n $tfs_source_repo_path_for_path ]]
     then
 
-        git_target_directory+="/$tfs_source_repo_path_for_path"
+        #git_target_directory+="/$tfs_source_repo_path_for_path"
         tfs_workspace+="-$tfs_source_repo_path_for_path"
 
     fi
