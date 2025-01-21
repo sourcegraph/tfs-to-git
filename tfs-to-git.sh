@@ -1718,9 +1718,9 @@ function git_garbage_collection() {
 
 function rsync_to_output_directory() {
 
-    info "rsync-ing .git directory from --tmp-directory $git_target_directory to --output-directory $output_directory"
+    info "Copying updated files from clone location in --tmp-directory $git_target_directory/.git to src serve-git path --output-directory $output_directory/.git"
 
-    rsync -rtv "$git_target_directory/.git" "$output_directory"
+    rsync -rt "$git_target_directory/.git" "$output_directory"
     # rsync options:
     # --recursive, -r          recurse into directories
     # --times, -t              preserve modification times
