@@ -153,6 +153,7 @@ declare -a  missing_authors
 declare     missing_authors_file
 declare     missing_dependencies
 declare     newer_changesets_to_migrate=true
+declare     output_directory
 declare -r  script_name="tfs-to-git"
 declare     log_file="/var/log/sg/$script_name.log"
 declare     script_start_time=$(date +%s)
@@ -532,8 +533,8 @@ function parse_and_validate_user_args() {
             shift
             ;;
         -o | --output-directory)
-            git_target_directory="$2"
-            debug "--output-directory $git_target_directory"
+            output_directory="$2"
+            debug "--output-directory $output_directory"
             shift
             shift
             ;;
@@ -578,6 +579,12 @@ function parse_and_validate_user_args() {
             shift
             shift
             ;;
+        --tmp-directory)
+            git_target_directory="$2"
+            debug "--tmp-directory $git_target_directory"
+            shift
+            shift
+            ;;
         --validate-paths)
             validate_paths=true
             debug "--validate-paths $validate_paths"
@@ -597,10 +604,12 @@ function parse_and_validate_user_args() {
     if [[ ! ${log_levels[$log_level_config]} ]]; then error "Log level (-l) must be one of ${!log_levels[*]}" ; fi
 
     # Validate required arguments
-    if [ -z "$tfs_server" ];                then error "TFS server (-t) is required"                 ; fi
-    if [ -z "$tfs_collection" ];            then error "Collection (-c) is required"                 ; fi
-    if [ -z "$tfs_source_repo_path" ];      then error "TFS source repository path (-s) is required" ; fi
-    if [ -z "$author_name_mapping_file" ];  then error "Author name mapping file (-a) is required"   ; fi
+    if [ -z "$tfs_server" ];                then error "TFS server (-t) is required"                            ; fi
+    if [ -z "$tfs_collection" ];            then error "Collection (-c) is required"                            ; fi
+    if [ -z "$tfs_source_repo_path" ];      then error "TFS source repository path (-s) is required"            ; fi
+    if [ -z "$author_name_mapping_file" ];  then error "Author name mapping file (-a) is required"              ; fi
+    if [ -z "$output_directory" ];          then error "Output directory path (--output-directory) is required" ; fi
+    if [ -z "$git_target_directory" ];      then error "Temporary directory path (tmp-directory) is required"   ; fi
 
 }
 
@@ -760,6 +769,7 @@ function check_dependencies() {
     external_dependencies_array+=(["git"]="git --version | sed 's/[^0-9\.]//g'")
     external_dependencies_array+=(["java"]="java --version | head -n 1")
     external_dependencies_array+=(["jq"]="jq --version | sed 's/jq-//g'")
+    external_dependencies_array+=(["rysnc"]="rsync --version | head -n 1")
     external_dependencies_array+=(["tf"]="tf | head -n 1 | sed 's/[^0-9\.]//g'")
     external_dependencies_array+=(["xml2json"]="pip list | grep xml2json | sed -nr 's/\S+\s+([0-9\.]+)/\1/p'")
 
@@ -1671,6 +1681,17 @@ function git_garbage_collection() {
 
 }
 
+function rsync_to_output_directory() {
+
+    info "rsync-ing git directory from --tmp-directory $git_target_directory to --output-directory $output_directory"
+
+    rsync -rtv "$git_target_directory" "$output_directory"
+    # rsync options:
+    # --recursive, -r          recurse into directories
+    # --times, -t              preserve modification times
+    # --verbose, -v            increase verbosity
+
+}
 
 function git_login_and_push() {
 
@@ -1915,6 +1936,9 @@ function main() {
     fi
 
     git_garbage_collection
+
+    rsync_to_output_directory
+
     git_login_and_push
 
     # Cleanup
