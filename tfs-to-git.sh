@@ -1103,6 +1103,18 @@ function create_migration_tfs_workspace() {
         workspace_exists=true
     fi
 
+    # TODO: tf get fails when the path changes, requiring the workspace to be deleted and recreated,
+    # This should get picked up at this stage
+    # tf output:
+    # An argument error occurred: Unable to determine the workspace. You may be able to correct this by running 'tf workspaces -collection:TeamProjectCollectionUrl'.
+    # Team Explorer Everywhere Command Line Client (version 14.139.0.202310311513)
+    #  get command:
+    #   Retrieves a read-only copy of one or more files from the source control server to the local disk. Any intermediate folders are created if necessary.
+    #   The version to retrieve may be specified through the 'version' option or as a version specification suffix to the item specification (example: '$/file.txt;C34').
+    #  Valid option sets:
+    #   get [-version:<value>] [-recursive] [-preview] [-force] [-all] [-overwrite] [-noautoresolve] [<itemSpec>...]
+    # 2025-01-21;18:31:06;ERROR;Error while getting first commit. See tf output
+
     # Only check if the workspace is valid if it exists
     if $workspace_exists
     then
@@ -1708,7 +1720,7 @@ function rsync_to_output_directory() {
 
     info "rsync-ing .git directory from --tmp-directory $git_target_directory to --output-directory $output_directory"
 
-    rsync -rtv "$git_target_directory/.git" "$output_directory/.git"
+    rsync -rtv "$git_target_directory/.git" "$output_directory"
     # rsync options:
     # --recursive, -r          recurse into directories
     # --times, -t              preserve modification times
