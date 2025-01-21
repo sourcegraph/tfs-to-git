@@ -769,7 +769,7 @@ function check_dependencies() {
     external_dependencies_array+=(["git"]="git --version | sed 's/[^0-9\.]//g'")
     external_dependencies_array+=(["java"]="java --version | head -n 1")
     external_dependencies_array+=(["jq"]="jq --version | sed 's/jq-//g'")
-    external_dependencies_array+=(["rysnc"]="rsync --version | head -n 1")
+    external_dependencies_array+=(["rsync"]="rsync --version | head -n 1")
     external_dependencies_array+=(["tf"]="tf | head -n 1 | sed 's/[^0-9\.]//g'")
     external_dependencies_array+=(["xml2json"]="pip list | grep xml2json | sed -nr 's/\S+\s+([0-9\.]+)/\1/p'")
 
