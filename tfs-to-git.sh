@@ -655,6 +655,7 @@ function set_file_paths_after_parsing_user_args(){
     # This is a limitation of the tf CLI
 
     # If the user didn't provide an output directory, default to the current directory
+    # This is now a required arg
     if [ -z "$git_target_directory" ]; then
         git_target_directory="$initial_pwd/repos/$tfs_server_for_path/$tfs_collection_for_path"
     fi
@@ -695,12 +696,43 @@ function set_file_paths_after_parsing_user_args(){
     # https://dev.azure.com/marc-leblanc/test2/_versionControl?path=$/test2/README.md
     # https://dev.azure.com/marc-leblanc/marc-test-tfvc/_versionControl?path=$/marc-test-tfvc/app/main/dev/README.md
 
+    # Create directories
+
+    declare -a directories=(
+        "$git_target_directory"
+        "$working_files_directory"
+        "$output_directory"
+    )
+
+    for directory in "${directories[@]}"
+    do
+
+        # Check if the target directory exists on disk
+        if [ -d "$directory" ]
+        then
+
+            debug "Directory already exists: $directory"
+
+        else
+
+            # If no, create it
+            if ! mkdir -p "$directory"
+            then
+                error "Failed to create directory: $directory"
+            else
+                info "Created directory: $directory"
+            fi
+        fi
+
+    done
+
     # If the user provided the --validate-paths flag
     if $validate_paths
     then
 
         echo "Validating paths"
-        echo "git_target_directory:         $git_target_directory"
+        echo "tmp-directory:                $git_target_directory"
+        echo "output-directory:             $output_directory"
         echo "server/collection/path:       $tfs_server/$tfs_collection/$tfs_source_repo_path"
         echo "tfs_repo_history_file_json:   $tfs_repo_history_file_json"
         echo "tfs_repo_history_file_xml:    $tfs_repo_history_file_xml"
@@ -840,18 +872,6 @@ function create_or_update_repo_then_cd(){
         then
             info "--force-replace arg specified, $git_target_directory exists, deleting it"
             rm -rf "$git_target_directory" >/dev/null 2>&1
-        fi
-
-    fi
-
-    # Check if the target directory exists on disk
-    if [ ! -d "$git_target_directory" ]
-    then
-
-        # If no, create it
-        if ! mkdir -p "$git_target_directory"
-        then
-            error "Could not create target directory $git_target_directory"
         fi
 
     fi
@@ -1666,6 +1686,9 @@ function convert_tfs_changesets_to_git_commits() {
 
         commit_finish_time=$(date +%s)
         last_commit_execution_time=$((commit_finish_time - commit_start_time))
+
+        # Sync this commit to the src serve-git location
+        rsync_to_output_directory
 
     done
 
